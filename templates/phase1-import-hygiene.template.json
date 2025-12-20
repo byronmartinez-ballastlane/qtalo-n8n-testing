@@ -1,0 +1,895 @@
+{
+  "name": "{{CLIENT_NAME}} - Phase 1: Import & Hygiene",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract configuration from workflow execution data\nconst executionData = $input.first().json;\n\n// Check if data was passed via workflow fields\nconst config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;\n\nconst workspaceId = config.reply_workspace_id || 'default-workspace';\n// Check both mailbox_csv_content AND data fields\nconst mailboxCsv = config.mailbox_csv_content || config.data || '';\nconst sendingLimits = config.sending_limits || { daily: 50, hourly: 10 };\nconst forceOverwrite = config.force_overwrite || false;\nconst companyName = config.company_name || 'Test Company';\n\nconsole.log('Parse CSV - mailboxCsv length:', mailboxCsv.length);\nconsole.log('Parse CSV - first 100 chars:', mailboxCsv.substring(0, 100));\n\n// If no CSV content, return mock data for testing\nif (!mailboxCsv || mailboxCsv.trim() === '') {\n  return [{ json: {\n    email: 'test@example.com',\n    senderName: 'Test User',\n    firstName: 'Test',\n    lastName: 'User',\n    domain: 'example.com',\n    displayName: 'Test',\n    dailyLimit: 50,\n    smtp: { host: 'smtp.example.com', port: 587, password: 'test' },\n    imap: { host: 'imap.example.com', port: 993, password: 'test' },\n    warmup: { dailyGoal: 20, dailyIncrement: 2 },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: 2,\n    _isMockData: true\n  }}];\n}\n\n// Parse CSV manually (csv-parse not available in n8n)\nconst lines = mailboxCsv.trim().split('\\n');\nconst headers = lines[0].split(',').map(h => h.trim());\nconst records = [];\n\nfor (let i = 1; i < lines.length; i++) {\n  const values = lines[i].split(',').map(v => v.trim());\n  const record = {};\n  headers.forEach((header, idx) => {\n    record[header] = values[idx] || '';\n  });\n  records.push(record);\n}\n\n// Transform records\nconst mailboxes = records.map((record, index) => {\n  // Parse name\n  const nameParts = (record['Sender Name'] || '').trim().split(/\\s+/);\n  const firstName = nameParts[0] || '';\n  const lastName = nameParts.slice(1).join(' ') || '';\n  \n  // Extract domain\n  const domain = record.Email.match(/@(.+)$/)?.[1] || '';\n  \n  return {\n    email: record.Email.trim().toLowerCase(),\n    senderName: record['Sender Name'],\n    firstName,\n    lastName,\n    domain,\n    displayName: firstName, // Use first name only\n    dailyLimit: parseInt(record['Daily Limit']) || 50,\n    smtp: {\n      host: record['SMTP Host'] || '',\n      port: parseInt(record['SMTP Port']) || 587,\n      password: record['SMTP Password'] || ''\n    },\n    imap: {\n      host: record['IMAP Host'] || '',\n      port: parseInt(record['IMAP Port']) || 993,\n      password: record['IMAP Password'] || ''\n    },\n    warmup: {\n      dailyGoal: parseInt(record['Warmup Daily Goal']) || 20,\n      dailyIncrement: parseInt(record['Warmup Daily Increment']) || 2\n    },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: index + 2\n  };\n});\n\nreturn mailboxes.map(m => ({ json: m }));"
+      },
+      "id": "parse-csv",
+      "name": "Parse CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.reply.io/v1/EmailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": false,
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "check-mailbox",
+      "name": "Check Mailbox Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        300
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if mailbox already exists and should skip or update\n// Also detect 401/403 auth errors from Reply.io API\nconst parseItems = $('Parse CSV').all();\nconst checkMailboxItems = $('Check Mailbox Exists').all();\nconst startData = $('Start').first().json;\nconst config = startData.inputData ? JSON.parse(startData.inputData) : startData;\nconst taskId = config.task_id;\n\n// Get existing accounts - n8n splits array responses into individual items\nconst existingAccounts = checkMailboxItems.map(item => item.json);\n\n// ============================================================\n// CHECK FOR REPLY.IO AUTH ERRORS (401/403)\n// ============================================================\nconst firstResponse = existingAccounts[0] || {};\nif (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.statusCode === 403 || \n    firstResponse.message?.includes('Unauthorized') || firstResponse.message?.includes('Forbidden')) {\n  \n  const errorMsg = firstResponse.error?.message || firstResponse.message || firstResponse.error || 'Authentication failed';\n  const statusCode = firstResponse.statusCode || firstResponse.error?.statusCode || 'unknown';\n  \n  console.error(`❌ Reply.io Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp\n  if (taskId && taskId !== 'unknown') {\n    try {\n      await this.helpers.request({\n        method: 'POST',\n        uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n        headers: {\n          'Authorization': HARDCODED_CLICKUP_API_KEY,\n          'Content-Type': 'application/json'\n        },\n        body: {\n          comment_text: `🚨 **Authentication Error - Reply.io API**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the Reply.io API key is valid\\n2. Check if the API key has the correct permissions\\n3. Update the API key in the n8n workflow\\n\\n**API Endpoint:** GET /v1/EmailAccounts\\n**Current API Key (last 8 chars):** ...${HARDCODED_REPLY_API_KEY.slice(-8)}`\n        },\n        json: true\n      });\n      console.log('✅ Posted Reply.io auth error comment to ClickUp');\n    } catch (commentError) {\n      console.error('Failed to post error comment:', commentError.message);\n    }\n  }\n  \n  throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n// ============================================================\n\nconsole.log(`Found ${existingAccounts.length} existing email accounts in Reply.io`);\n\n// Process each mailbox from Parse CSV\nconst results = parseItems.map((item, index) => {\n  const currentEmail = item.json.email;\n  const desiredDisplayName = item.json.displayName;\n  const forceOverwrite = item.json.forceOverwrite;\n  \n  // Find existing mailbox data\n  const existingMailbox = existingAccounts.find(acc => \n    acc.emailAddress && acc.emailAddress.toLowerCase() === currentEmail.toLowerCase()\n  );\n  \n  const emailExists = !!existingMailbox;\n  const currentSenderName = existingMailbox ? existingMailbox.senderName : '';\n  const senderNameDiffers = currentSenderName !== desiredDisplayName;\n  \n  // Should update if: exists AND (forceOverwrite OR senderName differs)\n  const shouldUpdate = emailExists && (forceOverwrite || senderNameDiffers);\n  \n  // Should skip if: exists AND NOT updating\n  const shouldSkip = emailExists && !shouldUpdate;\n  \n  console.log(`Email ${currentEmail}: exists=${emailExists}, current=\"${currentSenderName}\", desired=\"${desiredDisplayName}\", differs=${senderNameDiffers}, forceOverwrite=${forceOverwrite}, shouldUpdate=${shouldUpdate}, shouldSkip=${shouldSkip}`);\n  \n  return {\n    json: {\n      ...item.json,\n      emailExists,\n      currentSenderName,\n      senderNameDiffers,\n      shouldUpdate,\n      shouldSkip,\n      existingAccountsCount: existingAccounts.length,\n      existingMailboxId: existingMailbox ? existingMailbox.id : null,\n      task_id: taskId\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "should-skip",
+      "name": "Should Skip?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.emailExists }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "skip-check",
+      "name": "Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.shouldUpdate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-update-check",
+      "name": "Should Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.reply.io/v1/EmailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Email\": \"{{ $json.email }}\",\n  \"Daily Limit\": {{ $json.dailyLimit }},\n  \"SenderName\": \"{{ $json.displayName }}\",\n  \"SmtpHost\": \"{{ $json.smtp.host }}\",\n  \"SmtpPort\": {{ $json.smtp.port }},\n  \"SmtpPassword\": \"{{ $json.smtp.password }}\",\n  \"SmtpSsl\": true,\n  \"ImapHost\": \"{{ $json.imap.host }}\",\n  \"ImapPort\": {{ $json.imap.port }},\n  \"ImapPassword\": \"{{ $json.imap.password }}\",\n  \"ImapSsl\": true\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          }
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "update-mailbox",
+      "name": "Update Mailbox",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        80
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mark updated mailboxes\nconst apiResponses = $input.all();\nconst originalMailboxes = $('Should Update?', 0).all(); // Get data from Should Update? node's YES output\n\nconst results = apiResponses.map((apiItem, index) => {\n  const apiResponse = apiItem.json;\n  const originalData = originalMailboxes[index] ? originalMailboxes[index].json : {};\n  \n  console.log('=== UPDATE RESPONSE ===');\n  console.log('Email:', originalData.email);\n  console.log('Response ID:', apiResponse.id);\n  console.log('=======================');\n  \n  return {\n    json: {\n      ...originalData,\n      id: apiResponse.id || originalData.existingMailboxId,\n      updated: !!apiResponse.id,\n      action: 'updated',\n      api_response: apiResponse\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "mark-updated",
+      "name": "Mark as Updated",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        80
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mark truly skipped mailboxes (no update needed)\nconst items = $input.all();\n\nconst results = items.map(item => {\n  return {\n    json: {\n      ...item.json,\n      action: 'skipped',\n      skipped: true\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "mark-skipped",
+      "name": "Mark as Skipped",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        280
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.reply.io/v1/EmailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Email\": \"{{ $json.email }}\",\n  \"Daily Limit\": {{ $json.dailyLimit }},\n  \"SenderName\": \"{{ $json.displayName }}\",\n  \"SmtpHost\": \"{{ $json.smtp.host }}\",\n  \"SmtpPort\": {{ $json.smtp.port }},\n  \"SmtpPassword\": \"{{ $json.smtp.password }}\",\n  \"SmtpSsl\": true,\n  \"ImapHost\": \"{{ $json.imap.host }}\",\n  \"ImapPort\": {{ $json.imap.port }},\n  \"ImapPassword\": \"{{ $json.imap.password }}\",\n  \"ImapSsl\": true\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          }
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "create-mailbox",
+      "name": "Create Email Account",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1340,
+        420
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge Create Email Account API response with original mailbox data\nconst apiResponses = $input.all();\nconst originalMailboxes = $('Skip?', 1).all(); // Get data from Skip? node's output 1 (create path)\n\nconst results = apiResponses.map((apiItem, index) => {\n  const apiResponse = apiItem.json;\n  const originalData = originalMailboxes[index] ? originalMailboxes[index].json : {};\n  \n  // LOG FULL API RESPONSE FOR DEBUGGING\n  console.log('=== REPLY.IO API RESPONSE ===' );\n  console.log('Email:', originalData.email);\n  console.log('Full Response:', JSON.stringify(apiResponse, null, 2));\n  console.log('Has ID:', !!apiResponse.id);\n  console.log('Has Error:', !!apiResponse.error);\n  if (apiResponse.error) {\n    console.log('Error Status:', apiResponse.error.status);\n    console.log('Error Message:', apiResponse.error.message);\n    console.log('Error Stack:', apiResponse.error.stack?.substring(0, 200));\n  }\n  console.log('==============================');\n  \n  return {\n    json: {\n      ...originalData, // Keep all original mailbox data\n      id: apiResponse.id || apiResponse.emailAccountId,\n      created: !!apiResponse.id, // If ID exists in response, it was created\n      action: 'created',\n      api_response: apiResponse\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "merge-account-data",
+      "name": "Merge Account Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1450,
+        420
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "condition-1",
+              "leftValue": "={{ $json.api_response?.error?.status }}",
+              "rightValue": 500,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "condition-2",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "detect-failures",
+      "name": "Detect Failed Creations",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.reply.io/v1/emailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": false,
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "recheck-existing",
+      "name": "Re-check Existing Mailboxes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1680,
+        520
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter out failed items that now exist\nconst failedItems = $('Detect Failed Creations', 1).all();\nconst existingMailboxes = $input.all(); // Each item is one mailbox\n\n// Extract existing email addresses\nconst existingEmails = existingMailboxes\n  .map(item => item.json.emailAddress?.toLowerCase())\n  .filter(Boolean);\n\nconsole.log(`Re-check: Found ${existingEmails.length} existing mailboxes`);\nconsole.log(`Existing emails: ${existingEmails.slice(0, 5).join(', ')}...`);\n\n// Filter out items that now exist\nconst itemsToRetry = failedItems.filter(item => {\n  const email = item.json.email?.toLowerCase();\n  const alreadyExists = existingEmails.includes(email);\n  if (alreadyExists) {\n    console.log(`✓ Skipping retry for ${item.json.email} - already created`);\n  }\n  return !alreadyExists;\n});\n\nconsole.log(`→ Retrying ${itemsToRetry.length} out of ${failedItems.length} failed mailboxes`);\n\nif (itemsToRetry.length === 0) {\n  console.log('All failed mailboxes now exist - no retries needed!');\n  return [];\n}\n\nreturn itemsToRetry;"
+      },
+      "id": "filter-retries",
+      "name": "Filter Items To Retry",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        520
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.reply.io/v1/emailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"Email\": \"{{ $json.email }}\",\n  \"Daily Limit\": {{ $json.dailyLimit }},\n  \"SenderName\": \"{{ $json.displayName }}\",\n  \"SmtpHost\": \"{{ $json.smtp.host }}\",\n  \"SmtpPort\": {{ $json.smtp.port }},\n  \"SmtpPassword\": \"{{ $json.smtp.password }}\",\n  \"SmtpSsl\": true,\n  \"ImapHost\": \"{{ $json.imap.host }}\",\n  \"ImapPort\": {{ $json.imap.port }},\n  \"ImapPassword\": \"{{ $json.imap.password }}\",\n  \"ImapSsl\": true\n}",
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 5000
+            }
+          },
+          "retry": {
+            "maxRetries": 3,
+            "retryInitialWaitTime": 3000,
+            "retryBackoffFactor": 2
+          }
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "retry-failed-creations",
+      "name": "Retry Failed Creations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1920,
+        520
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge retry results with original mailbox data\nconst retryResponses = $input.all();\nconst failedMailboxes = $('Detect Failed Creations', 1).all();\n\nconst results = retryResponses.map((retryItem, index) => {\n  const retryResponse = retryItem.json;\n  const originalData = failedMailboxes[index] ? failedMailboxes[index].json : {};\n  \n  // LOG RETRY RESPONSE FOR DEBUGGING\n  console.log('=== RETRY ATTEMPT RESPONSE ===');\n  console.log('Email:', originalData.email);\n  console.log('Retry Response:', JSON.stringify(retryResponse, null, 2));\n  console.log('Retry Successful:', !!retryResponse.id);\n  if (retryResponse.error) {\n    console.log('Retry Error Status:', retryResponse.error.status);\n    console.log('Retry Error Message:', retryResponse.error.message);\n  }\n  console.log('==============================');\n  \n  return {\n    json: {\n      ...originalData,\n      id: retryResponse.id || retryResponse.emailAccountId,\n      created: !!retryResponse.id,\n      api_response: retryResponse,\n      retried: true,\n      retry_successful: !!retryResponse.id\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "merge-retry-results",
+      "name": "Merge Retry Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2040,
+        520
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "combine-all-results",
+      "name": "Combine All Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        2100,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through mailbox data without applying limits (limits endpoint removed)\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    limits_applied: false,\n    limits_skipped_reason: 'Limits API disabled'\n  }\n}));"
+      },
+      "id": "prepare-limits",
+      "name": "Prepare Sending Limits",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        420
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.should_apply_limits }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "check-apply-limits",
+      "name": "Should Apply Limits?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2500,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.reply.io/v1/EmailAccounts/{{ $json.mailbox_id }}/settings",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"dailyLimit\": {{ $json.daily_limit }},\n  \"sendingWindow\": {\n    \"enabled\": true,\n    \"start\": \"{{ $json.window_start }}\",\n    \"end\": \"{{ $json.window_end }}\",\n    \"timezone\": \"{{ $json.timezone }}\"\n  }\n}",
+        "options": {
+          "retry": {
+            "retryOnHttpStatusCodes": "429",
+            "maxRetries": 3,
+            "retryInitialWaitTime": 1000,
+            "retryBackoffFactor": 2
+          }
+        },
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "apply-limits",
+      "name": "Apply Limits API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2720,
+        320
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge limits result with mailbox data - process ALL items\nconst limitsResponses = $input.all();\nconst mailboxes = $('Prepare Sending Limits').all();\n\n// Match each limits response with its corresponding mailbox by index\nconst results = limitsResponses.map((limitsItem, index) => {\n  const limitsResponse = limitsItem.json;\n  const mailboxData = mailboxes[index] ? mailboxes[index].json : {};\n  \n  let limitsApplied = false;\n  let limitsError = '';\n  \n  if (limitsResponse.error) {\n    // Convert error to string if it's an object\n    const errorStr = typeof limitsResponse.error === 'string' ? limitsResponse.error : JSON.stringify(limitsResponse.error);\n    limitsError = errorStr;\n    // Check for 404 errors (endpoint not available)\n    if (errorStr.includes('404')) {\n      limitsError = 'Endpoint not available';\n    }\n    // Check for auth errors\n    else if (errorStr.includes('401') || errorStr.includes('403')) {\n      limitsError = '🔒 Authentication failed - Please update Reply.io API key in ClickUp';\n    } else if (errorStr.includes('429')) {\n      limitsError = '⏱️ Rate limit exceeded - Retries exhausted';\n    }\n  } else if (limitsResponse.statusCode && limitsResponse.statusCode >= 200 && limitsResponse.statusCode < 300) {\n    limitsApplied = true;\n  }\n  \n  return {\n    json: {\n      ...mailboxData,\n      limits_applied: limitsApplied,\n      limits_error: limitsError\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "merge-limits-result",
+      "name": "Merge Limits Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        320
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through for skipped limits - process ALL items\nconst items = $input.all();\nreturn items.map(item => ({ json: item.json }));"
+      },
+      "id": "skip-limits",
+      "name": "Skip Limits",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2720,
+        520
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.reply.io/v1/EmailAccounts/{{ $json.mailbox_id }}/settings",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"dailyLimit\": {{ $json.daily_limit }},\n  \"hourlyLimit\": {{ $json.hourly_limit }}\n}",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "apply-sending-limits",
+      "name": "Apply Sending Limits",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2920,
+        320
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate report for each mailbox operation\nconst items = $input.all();\n\nconst results = items.map(item => {\n  const data = item.json;\n  \n  let status, action, error;\n  \n  // Check if action was already set by update/create/skip nodes\n  if (data.action) {\n    action = data.action; // 'created', 'updated', 'skipped'\n    status = (action === 'skipped') ? 'skipped' : 'success';\n    error = (action === 'skipped') ? 'Already exists, no changes needed' : '';\n  } else if (data.error) {\n    status = 'error';\n    action = 'failed';\n    error = data.error;\n  } else if (data.id || data.emailAccountId) {\n    status = 'success';\n    action = data.created ? 'created' : (data.updated ? 'updated' : 'unknown');\n    if (data.retried && data.retry_successful) {\n      action = 'created (retry)';\n    }\n    error = '';\n  } else {\n    status = 'unknown';\n    action = 'unknown';\n    error = data.api_response?.error?.message || 'Unexpected response';\n  }\n  \n  // Hide limits error if it's just endpoint not available\n  const limitsError = data.limits_error === 'Endpoint not available' ? '' : (data.limits_error || '');\n  \n  return {\n    json: {\n      email: data.email,\n      status,\n      action,\n      displayName: data.display_name || data.displayName,\n      limits_applied: data.limits_applied || false,\n      limits_error: limitsError,\n      error,\n      retried: data.retried || false,\n      timestamp: new Date().toISOString()\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "generate-report",
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate CSV report manually (csv-stringify not available)\nconst items = $input.all();\n\nconst records = items.map(item => ({\n  Email: item.json.email,\n  Status: item.json.status,\n  Action: item.json.action,\n  DisplayName: item.json.displayName,\n  LimitsApplied: item.json.limits_applied ? 'Yes' : 'No',\n  LimitsError: item.json.limits_error || '',\n  Error: item.json.error || '',\n  Timestamp: item.json.timestamp\n}));\n\n// Create CSV manually\nconst headers = ['Email', 'Status', 'Action', 'Display Name', 'Limits Applied', 'Limits Error', 'Error', 'Timestamp'];\nconst csvLines = [headers.join(',')];\nrecords.forEach(r => {\n  const errorText = String(r.Error || '').replace(/,/g, ';');\n  const limitsError = String(r.LimitsError || '').replace(/,/g, ';');\n  csvLines.push([\n    r.Email,\n    r.Status,\n    r.Action,\n    r.DisplayName,\n    r.LimitsApplied,\n    limitsError,\n    errorText,\n    r.Timestamp\n  ].join(','));\n});\nconst csv = csvLines.join('\\n');\n\n// Generate summary statistics\nconst total = items.length;\nconst created = items.filter(i => i.json.action === 'created').length;\nconst updated = items.filter(i => i.json.action === 'updated').length;\nconst skipped = items.filter(i => i.json.status === 'skipped').length;\nconst failed = items.filter(i => i.json.status === 'error').length;\nconst limitsApplied = items.filter(i => i.json.limits_applied === true).length;\n\nreturn [{\n  json: {\n    phase: 'Phase 1: Import & Hygiene',\n    total_processed: total,\n    created_count: created,\n    updated_count: updated,\n    skipped_count: skipped,\n    failed_count: failed,\n    limits_applied_count: limitsApplied,\n    reply_workspace_id: items[0]?.json.workspaceId || 'default-workspace',\n    csv_report: csv,\n    summary: {\n      total,\n      created,\n      updated,\n      skipped,\n      failed,\n      limitsApplied,\n      successRate: total > 0 ? ((created + updated) / total * 100).toFixed(2) + '%' : '0%'\n    },\n    results: items.map(i => i.json)\n  }\n}];"
+      },
+      "id": "create-csv",
+      "name": "Create CSV Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Parse CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse CSV": {
+      "main": [
+        [
+          {
+            "node": "Check Mailbox Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Mailbox Exists": {
+      "main": [
+        [
+          {
+            "node": "Should Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Skip?": {
+      "main": [
+        [
+          {
+            "node": "Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip?": {
+      "main": [
+        [
+          {
+            "node": "Should Update?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Email Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Update?": {
+      "main": [
+        [
+          {
+            "node": "Update Mailbox",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark as Skipped",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Mailbox": {
+      "main": [
+        [
+          {
+            "node": "Mark as Updated",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Updated": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark as Skipped": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Email Account": {
+      "main": [
+        [
+          {
+            "node": "Merge Account Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Account Data": {
+      "main": [
+        [
+          {
+            "node": "Detect Failed Creations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Failed Creations": {
+      "main": [
+        [
+          {
+            "node": "Re-check Existing Mailboxes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Combine All Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Re-check Existing Mailboxes": {
+      "main": [
+        [
+          {
+            "node": "Filter Items To Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Items To Retry": {
+      "main": [
+        [
+          {
+            "node": "Retry Failed Creations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry Failed Creations": {
+      "main": [
+        [
+          {
+            "node": "Merge Retry Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Retry Results": {
+      "main": [
+        [
+          {
+            "node": "Combine All Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Combine All Results": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sending Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sending Limits": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Apply Limits?": {
+      "main": [
+        [
+          {
+            "node": "Apply Limits API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apply Limits API": {
+      "main": [
+        [
+          {
+            "node": "Merge Limits Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Limits Result": {
+      "main": [
+        [
+          {
+            "node": "Apply Sending Limits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Limits": {
+      "main": [
+        [
+          {
+            "node": "Apply Sending Limits",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Apply Sending Limits": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Create CSV Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "phase1-import-hygiene",
+  "meta": {
+    "instanceId": "n8n"
+  },
+  "tags": []
+}

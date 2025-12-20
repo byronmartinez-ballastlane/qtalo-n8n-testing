@@ -1,0 +1,425 @@
+{
+  "name": "System - Deployment Callback Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "deployment-callback",
+        "options": {
+          "responseMode": "responseNode"
+        }
+      },
+      "id": "webhook-trigger",
+      "name": "Deployment Callback Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "deployment-callback"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse callback from GitHub Actions\nconst data = $input.first().json;\nconst body = data.body || data;\n\nconsole.log('📥 Received deployment callback:', JSON.stringify(body, null, 2));\n\nreturn [{\n  json: {\n    status: body.status,\n    client_id: body.client_id,\n    client_name: body.client_name,\n    clickup_task_id: body.clickup_task_id,\n    run_id: body.run_id,\n    run_url: body.run_url,\n    workflows_deployed: body.workflows_deployed || [],\n    error: body.error || null,\n    is_success: body.status === 'success'\n  }\n}];"
+      },
+      "id": "parse-callback",
+      "name": "Parse Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.is_success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-status",
+      "name": "Deployment Succeeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"active\"\n}",
+        "options": {}
+      },
+      "id": "update-client-status-success",
+      "name": "Update Client Status (Active)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"deployment_failed\"\n}",
+        "options": {}
+      },
+      "id": "update-client-status-failed",
+      "name": "Update Client Status (Failed)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $('Parse Callback').first().json.clickup_task_id }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.CLICKUP_API_KEY }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-task-for-fields",
+      "name": "Get Task Custom Fields",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find the client_id custom field by name and update it\nconst task = $input.first().json;\nconst clientId = $('Parse Callback').first().json.client_id;\nconst customFields = task.custom_fields || [];\n\nconsole.log('🔍 Looking for client_id field in custom fields...');\nconsole.log('Available fields:', customFields.map(f => f.name).join(', '));\n\n// Find field by name (case-insensitive, handles various naming)\nconst clientIdField = customFields.find(f => {\n  const name = (f.name || '').toLowerCase();\n  return name.includes('client_id') || \n         name.includes('client id') || \n         name === 'clientid';\n});\n\nif (!clientIdField) {\n  console.log('⚠️ No client_id field found on task - skipping field update');\n  return [{ json: { skip_field_update: true, client_id: clientId, task_id: task.id } }];\n}\n\nconsole.log(`✅ Found client_id field: ${clientIdField.name} (ID: ${clientIdField.id})`);\n\nreturn [{\n  json: {\n    skip_field_update: false,\n    field_id: clientIdField.id,\n    field_name: clientIdField.name,\n    client_id: clientId,\n    task_id: task.id\n  }\n}];"
+      },
+      "id": "find-client-id-field",
+      "name": "Find client_id Field",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.skip_field_update }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-update-field",
+      "name": "Field Exists?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/field/{{ $json.field_id }}",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.CLICKUP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"value\": \"{{ $json.client_id }}\"\n}",
+        "options": {}
+      },
+      "id": "update-clickup-client-id",
+      "name": "Update ClickUp client_id Field",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1780, 150],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $('Parse Callback').first().json.clickup_task_id }}/comment",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.CLICKUP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"comment_text\": \"✅ **Workflows Deployed Successfully!**\\n\\n**Client ID:** {{ $('Parse Callback').first().json.client_id }}\\n**Client Name:** {{ $('Parse Callback').first().json.client_name }}\\n\\n**4 workflows created:**\\n- Phase 1: Import & Hygiene\\n- Phase 2: Signatures & Opt-Outs\\n- Phase 3: Standardize Workspace\\n- Main Orchestrator\\n\\n🚀 **Ready to use!** Change status to **REPLY** to trigger the automation.\\n\\n[View GitHub Action]({{ $('Parse Callback').first().json.run_url }})\"\n}",
+        "options": {}
+      },
+      "id": "post-success-comment",
+      "name": "Post Success Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $('Parse Callback').first().json.clickup_task_id }}/comment",
+        "authentication": "none",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $env.CLICKUP_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"comment_text\": \"🚨 **Workflow Deployment Failed**\\n\\n**Client ID:** {{ $('Parse Callback').first().json.client_id }}\\n**Error:** {{ $('Parse Callback').first().json.error }}\\n\\n[View GitHub Action Logs]({{ $('Parse Callback').first().json.run_url }})\\n\\nPlease check the logs and retry.\"\n}",
+        "options": {}
+      },
+      "id": "post-failure-comment",
+      "name": "Post Failure Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Callback processed\",\n  \"client_id\": \"{{ $('Parse Callback').first().json.client_id }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2220, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"message\": \"Failure callback processed\",\n  \"client_id\": \"{{ $('Parse Callback').first().json.client_id }}\"\n}",
+        "options": {}
+      },
+      "id": "respond-failure",
+      "name": "Respond Failure Processed",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1340, 400]
+    }
+  ],
+  "connections": {
+    "Deployment Callback Webhook": {
+      "main": [
+        [
+          {
+            "node": "Parse Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Callback": {
+      "main": [
+        [
+          {
+            "node": "Deployment Succeeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deployment Succeeded?": {
+      "main": [
+        [
+          {
+            "node": "Update Client Status (Active)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Client Status (Failed)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Client Status (Active)": {
+      "main": [
+        [
+          {
+            "node": "Get Task Custom Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Client Status (Failed)": {
+      "main": [
+        [
+          {
+            "node": "Post Failure Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Task Custom Fields": {
+      "main": [
+        [
+          {
+            "node": "Find client_id Field",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find client_id Field": {
+      "main": [
+        [
+          {
+            "node": "Field Exists?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Field Exists?": {
+      "main": [
+        [
+          {
+            "node": "Update ClickUp client_id Field",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Post Success Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update ClickUp client_id Field": {
+      "main": [
+        [
+          {
+            "node": "Post Success Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Success Comment": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Failure Comment": {
+      "main": [
+        [
+          {
+            "node": "Respond Failure Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "meta": {
+    "templateId": "deployment-callback"
+  },
+  "tags": []
+}

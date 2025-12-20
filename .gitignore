@@ -1,0 +1,24 @@
+# Environment
+.env
+.env.local
+.env.production
+.env.staging
+
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Docker
+backups/
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+.env

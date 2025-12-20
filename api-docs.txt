@@ -1,0 +1,279 @@
+7. Email Accounts
+GETGet List of Email Accounts
+https://api.reply.io/v1/emailAccounts
+Description:
+
+This endpoint returns the list of all email accounts in your Reply account.
+Throttling:
+
+    There is no throttling for this endpoint
+
+Response Body Data:
+Field	Type	Description
+id	integer	Email account ID.
+senderName	string	Email account sender name.
+emailAddress	string	Email account email address.
+signature	string	Email account signature
+HEADERS
+x-api-key
+
+{{apiKey}}
+
+Your API Key from settings
+Example Request
+Get List of Email Accounts
+curl
+
+curl --location 'https://api.reply.io/v1/emailAccounts' \
+--header 'x-api-key: {{Your_apiKey}}' \
+--data ''
+
+200 OK
+Example Response
+
+json
+
+[
+  {
+    "id": 26553,
+    "senderName": "Samanta Smith",
+    "emailAddress": "demoEmail@reply.io",
+    "signature": "Best regars, Samanta."
+  },
+  {
+    "id": 26553,
+    "senderName": "Carla Jeferson",
+    "emailAddress": "demoEmail2@reply.io",
+    "signature": ""
+  }
+]
+
+
+
+
+POSTUpdate Email Account
+https://api.reply.io/v1/EmailAccounts
+Description:
+
+This endpoint allows you to modify the details of an existing Reply account used for sending emails.
+Notes:
+
+    You can only update email accounts by using the "other provider" setup.
+
+Throttling:
+
+    There is no throttling for this endpoint.
+
+Request Body Data:
+Field	Type	Description	Required
+Email	string	The email address used for sending emails.	Yes
+Daily Limit	integer	The maximum number of emails you can send per day	Yes
+SenderName	string	The name that will be displayed as the sender in email recipients' inboxes	Yes
+SmtpHost	string	The hostname or IP address of the Simple Mail Transfer Protocol (SMTP) server used for sending emails.	Yes
+SmtpPort	integer	The port number used for communication with the SMTP server (typically 465 for SMTP with SSL/TLS encryption).	Yes
+SmtpPassword	string	The password for the email address used for sending emails	Yes
+SmtpSsl	boolean	This option controls whether SSL is used for the SMTP connection	No
+ImapHost	string	The hostname or IP address of the Internet Message Access Protocol (IMAP) server used for receiving emails.	Yes
+ImapPort	integer	The port number used for communication with the IMAP server (typically 993 for IMAP with SSL/TLS encryption).	Yes
+ImapPassword	string	The password for the email address used for receiving emails	Yes
+ImapSsl	boolean	This option controls whether SSL is used for the IMAP connection	No
+Response Body Data:
+Field	Type	Description
+id	integer	Updated Email account ID.
+HEADERS
+x-api-key
+
+{{apiKey}}
+
+Your API Key from settings
+Bodyraw (json)
+json
+
+{
+    "Email": "demoEmail@reply.io",
+    "Daily Limit": "39",
+    "SenderName": "Caren Smith",
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": "587",
+    "SmtpPassword": "DemoEmailPa$$2024",
+    "SmtpSsl": false,
+    "ImapHost": "imap.gmail.com",
+    "ImapPort": "143",
+    "ImapPassword": "DemoEmailPa$$2024",
+    "ImapSsl": false
+}
+
+Example Request
+Update Email Account
+curl
+
+curl --location 'https://api.reply.io/v1/EmailAccounts' \
+--header 'x-api-key: {{Your_apiKey}}' \
+--data-raw '{
+    "Email": "demoEmail@reply.io",
+    "Daily Limit": "39",
+    "SenderName": "Caren Smith",
+    "SmtpHost": "smtp.gmail.com",
+    "SmtpPort": "587",
+    "SmtpPassword": "DemoEmailPa$$2024",
+    "SmtpSsl": false,
+    "ImapHost": "imap.gmail.com",
+    "ImapPort": "143",
+    "ImapPassword": "DemoEmailPa$$2024",
+    "ImapSsl": false
+}'
+
+200 OK
+Example Response
+
+json
+
+{
+  "id": 26546849574
+}
+
+DELETEDelete Email Account (by ID)
+https://api.reply.io/v1/EmailAccounts
+Description:
+
+This endpoint lets you delete an existing email account associated with your Reply account by providing its unique identifier (ID).
+Notes:
+
+    You can only delete email accounts by using the "other provider" setup.
+
+Throttling:
+
+    There is no throttling for this endpoint.
+
+Request Body Data:
+Field	Type	Description	Required
+Id	integer	The ID of your Email Account withing Reply Settings	Yes
+Response Body Data:
+
+    No additional responce data is returned
+
+HEADERS
+x-api-key
+
+{{apiKey}}
+
+Your API Key from settings
+Bodyraw (json)
+json
+
+{
+    "id": 26546849574
+}
+
+Example Request
+Delete Email Account (by ID)
+curl
+
+curl --location --request DELETE 'https://api.reply.io/v1/EmailAccounts' \
+--header 'x-api-key: {{Your_apiKey}}' \
+--data '{
+    "id": 26546849574
+}'
+
+200 OK
+Example Response
+
+No response body
+This request doesn't return any response body
+DELETEDelete Email Account (by Email)
+https://api.reply.io/v1/EmailAccounts
+Description:
+
+This endpoint lets you delete an existing email account associated with your Reply account by providing its email address.
+Notes:
+
+    You can only delete email accounts by using the "other provider" setup.
+
+Throttling:
+
+    There is no throttling for this endpoint.
+
+Request Body Data:
+Field	Type	Description	Required
+Email	string	The email address of your email account within Reply Settings	Yes
+Response Body Data:
+
+    No additional responce data is returned
+
+HEADERS
+x-api-key
+
+{{apiKey}}
+
+Your API Key from settings
+Bodyraw (json)
+json
+
+{
+    "Email": "demoEmail@reply.io"
+}
+
+Example Request
+Delete Email Account (by Email)
+curl
+
+curl --location --request DELETE 'https://api.reply.io/v1/EmailAccounts' \
+--header 'x-api-key: {{Your_apiKey}}' \
+--data-raw '{
+    "Email": "demoEmail@reply.io"
+}'
+
+200 OK
+Example Response
+
+No response body
+This request doesn't return any response body
+
+
+
+-----------
+
+
+POSTRemove Contact from One Sequence
+https://api.reply.io/v1/actions/removepersonfromcampaignbyid
+Description:
+
+This endpoint allows you to remove an existing contact from a selected campaign by their ID.
+Throttling:
+
+    There is no throttling for this endpoint
+
+Request Body Data:
+Field	Type	Description	Required
+campaignId	integer	The ID of the campaign from which to remove the contact.	Required
+email	string	The email address of the contact.	Required
+Response Body Data:
+
+    No additional responce data is returned:
+
+HEADERS
+Content-Type
+
+application/json
+x-api-key
+
+{{apiKey}}
+
+Your API Key from settings
+Example Request
+Remove Contact from One Sequence
+curl
+
+curl --location 'https://api.reply.io/v1/actions/removepersonfromcampaignbyid' \
+--header 'Content-Type: application/json' \
+--header 'x-api-key: {{Your_apiKey}}' \
+--data-raw '{
+"campaignId": 51155,
+"email": "demoemail@reply.io"
+}'
+
+200 OK
+Example Response
+
+No response body
+This request doesn't return any response body 

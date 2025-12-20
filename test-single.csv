@@ -1,0 +1,2 @@
+Email,Daily Limit,Sender Name,SMTP Host,SMTP Port,SMTP Password,IMAP Host,IMAP Port,IMAP Password,Warmup Daily Goal,Warmup Daily Increment
+test123@byrontesting.com,25,Test User,smtp.byrontesting.com,465,password_here,imap.byrontesting.com,993,password_here,25,3

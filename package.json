@@ -1,0 +1,13 @@
+{
+  "name": "reply-clickup-automation",
+  "version": "1.0.0",
+  "description": "Reply.io workspace automation via ClickUp",
+  "scripts": {
+    "deploy": "node scripts/deploy-professional.js",
+    "deploy:debug": "DEBUG=true node scripts/deploy-professional.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5"
+  }
+}

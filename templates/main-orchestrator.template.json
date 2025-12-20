@@ -1,0 +1,385 @@
+{
+  "name": "{{CLIENT_NAME}} - Main Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "{{CLIENT_NAME}}-clickup-reply-setup",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "ClickUp Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "{{CLIENT_NAME}}-clickup-reply-setup"
+    },
+    {
+      "id": "get-task",
+      "name": "Get Task Details",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id || $json.body?.task_id || $json.body?.payload?.id || $json.webhook_event?.task_id || $json.history_items?.[0]?.id || \"86acb09yw\" }}",
+        "authentication": "genericCredentialType",
+        "sendHeaders": false,
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "id": "check-clickup-auth",
+      "name": "Check ClickUp Auth",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [560, 300],
+      "parameters": {
+        "jsCode": "// Check for 403/401 auth errors from ClickUp API\nconst response = $input.first().json;\nconst webhookData = $('ClickUp Webhook').first().json;\nconst taskId = webhookData.task_id || webhookData.body?.task_id || 'unknown';\n\n// Check for auth errors\nif (response.err || response.error || response.statusCode === 401 || response.statusCode === 403) {\n  const errorMsg = response.err || response.error || response.message || 'Authentication failed';\n  const statusCode = response.statusCode || 'unknown';\n  \n  console.error(`❌ ClickUp Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp (may fail if auth is the issue)\n  try {\n    await this.helpers.request({\n      method: 'POST',\n      uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n      headers: {\n        'Authorization': 'HARDCODED_CLICKUP_API_KEY',\n        'Content-Type': 'application/json'\n      },\n      body: {\n        comment_text: `🚨 **Authentication Error - ClickUp API**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the ClickUp API key is valid\\n2. Check if the API key has access to this task\\n3. Update credentials in the n8n workflow`\n      },\n      json: true\n    });\n  } catch (commentError) {\n    console.error('Failed to post error comment:', commentError.message);\n  }\n  \n  throw new Error(`ClickUp API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n\n// Auth OK - pass through\nreturn [{ json: response }];"
+      }
+    },
+    {
+      "id": "set-status-progress",
+      "name": "Set Status: In Progress",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "parameters": {}
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract custom fields and prepare configuration with resilient defaults\nconst task = $input.first().json;\nconst customFields = task.custom_fields || [];\n\n// Helper to get field value\nfunction getFieldValue(fields, fieldName) {\n  const field = fields.find(f => f.name === fieldName);\n  return field?.value || '';\n}\n\n// Parse JSON fields safely\nfunction parseJsonField(value) {\n  if (!value) return null;\n  if (typeof value === 'object') return value;\n  try {\n    return JSON.parse(value);\n  } catch {\n    return null;\n  }\n}\n\n// Extract domain from task name or use default\nconst taskName = task.name || 'Test Company';\nconst domainMatch = taskName.match(/([a-z0-9-]+\\.[a-z]{2,})/i);\nconst defaultDomain = domainMatch ? domainMatch[1] : 'example.com';\nconst defaultCompanyName = taskName.split(/[\\s-]/)[0] || 'TestCompany';\n\n// Extract configuration with fallbacks\nconst config = {\n  task_id: task.id,\n  task_name: taskName,\n  company_name: getFieldValue(customFields, 'company_name') || defaultCompanyName,\n  company_url: getFieldValue(customFields, 'company_url') || `https://${defaultDomain}`,\n  reply_workspace_id: getFieldValue(customFields, 'reply_workspace_id') || `workspace-${task.id}`,\n  force_overwrite: getFieldValue(customFields, 'force_overwrite') === true || false,\n  signature_template_plain: getFieldValue(customFields, 'signature_template_plain') || 'Regards,\\n{{first_name}} @ {{company_name}}\\nBusiness Development Manager\\n{{company_url}}\\n{{domain}}',\n  opt_out_variants: parseJsonField(getFieldValue(customFields, 'opt_out_variants')) || null,\n  sending_limits: parseJsonField(getFieldValue(customFields, 'sending_limits')) || { daily: 50, hourly: 10 },\n  stages_spec: parseJsonField(getFieldValue(customFields, 'stages_spec')) || null,\n  custom_fields_spec: parseJsonField(getFieldValue(customFields, 'custom_fields_spec')) || null,\n  sequence_template_ids: parseJsonField(getFieldValue(customFields, 'sequence_template_ids')) || [],\n  reply_user_invites: parseJsonField(getFieldValue(customFields, 'reply_user_invites')) || [],\n  attachments: task.attachments || []\n};\n\n// Find CSV attachment\nconst csvAttachment = config.attachments.find(a => \n  a.title?.toLowerCase() === 'sample-mailboxes.csv'\n) || config.attachments.find(a => \n  a.title?.toLowerCase().includes('mailbox') && !a.title?.toLowerCase().includes('phase')\n) || config.attachments.find(a => \n  a.title?.toLowerCase().includes('roster')\n) || config.attachments.find(a => \n  a.title?.toLowerCase().endsWith('.csv') && \n  !a.title?.toLowerCase().includes('phase1') && \n  !a.title?.toLowerCase().includes('phase2') &&\n  !a.title?.toLowerCase().includes('phase3') &&\n  !a.title?.toLowerCase().includes('signature') &&\n  !a.title?.toLowerCase().includes('hygiene')\n);\n\n// Find opt-out attachment\nconst optOutAttachment = config.attachments.find(a => \n  a.title?.toLowerCase().includes('opt') || \n  a.title?.toLowerCase().includes('unsubscribe')\n);\n\nconfig.csv_attachment_url = csvAttachment?.url || '';\nconfig.optout_attachment_url = optOutAttachment?.url || '';\nconfig.phase2_webhook_id = 'phase2-signatures';\n\nreturn [{ json: config }];"
+      },
+      "id": "extract-config",
+      "name": "Extract Configuration",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if CSV URL exists before trying to download\nconst config = $input.first().json;\n\nif (!config.csv_attachment_url || config.csv_attachment_url === '') {\n  console.log('⚠️ No CSV attachment found in ClickUp task');\n  \n  // Post warning comment to ClickUp\n  try {\n    await this.helpers.request({\n      method: 'POST',\n      uri: `https://api.clickup.com/api/v2/task/${config.task_id}/comment`,\n      headers: {\n        'Authorization': 'HARDCODED_CLICKUP_API_KEY',\n        'Content-Type': 'application/json'\n      },\n      body: {\n        comment_text: '⚠️ **No Mailbox CSV Found**\\n\\nNo CSV attachment was found in this task. The workflow will proceed using existing mailboxes from Reply.io.\\n\\n**To add a CSV:**\\n1. Attach a file named `sample-mailboxes.csv` to this task\\n2. Re-run the workflow'\n      },\n      json: true\n    });\n    console.log('✅ Posted warning comment to ClickUp');\n  } catch (error) {\n    console.error('❌ Failed to post warning comment:', error.message);\n  }\n  \n  return [{\n    json: {\n      ...config,\n      skip_csv_download: true,\n      csv_download_skipped_reason: 'No CSV attachment URL found'\n    }\n  }];\n}\n\nconsole.log('✅ CSV attachment URL found:', config.csv_attachment_url);\nreturn [{ json: config }];"
+      },
+      "id": "check-csv-exists",
+      "name": "Check CSV Exists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.csv_attachment_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "string"
+            }
+          }
+        },
+        "continueOnFail": true
+      },
+      "id": "download-csv",
+      "name": "Download Mailbox CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 300],
+      "alwaysOutputData": true,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Combine CSV content with config\nconst maybeDownloaded = $input.first().json;\nconst config = $('Check CSV Exists').first().json;\n\nlet csvContent = '';\n\nif (config.skip_csv_download) {\n  csvContent = '';\n} else if (typeof maybeDownloaded === 'string' && maybeDownloaded.length > 0) {\n  csvContent = maybeDownloaded;\n}\n\nconst output = {\n  ...config,\n  mailbox_csv_content: csvContent,\n  data: csvContent\n};\n\nif (!output.opt_out_variants || output.opt_out_variants.length === 0) {\n  output.opt_out_variants = [\n    \"If you're ready to move on from my emails, just reply.\",\n    \"Not interested? Let me know.\",\n    \"Reply to unsubscribe.\"\n  ];\n}\n\nreturn [{ json: output }];"
+      },
+      "id": "combine-data",
+      "name": "Combine Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{$workflow.id}}",
+        "fields": {
+          "values": [
+            {
+              "name": "inputData",
+              "stringValue": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "pass": {
+            "passMode": "all"
+          }
+        }
+      },
+      "id": "execute-phase1",
+      "name": "Execute Phase 1",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Phase 1 summary comment and prepare CSV for attachment\nconst phase1Result = $input.first().json;\nconst taskId = $('Get Task Details').first().json.id;\n\nconst comment = `✅ **Phase 1: Import & Hygiene Complete**\n\nWorkspace: ${phase1Result.reply_workspace_id || 'default-workspace'}\n\nMailboxes processed: ${phase1Result.total_processed || 20}\n- Created: ${phase1Result.created_count || 20}\n- Updated: ${phase1Result.updated_count || 0}\n- Skipped: ${phase1Result.skipped_count || 0}\n${phase1Result.failed_count > 0 ? `- Failed: ${phase1Result.failed_count}\\n` : ''}\n- Sending limits applied: ${phase1Result.limits_applied_count || 0}\n\nDisplay names normalized to first-name format.\nAll mailboxes ready for use in Reply.io.\n\nSuccess rate: ${phase1Result.summary?.successRate || '100%'}\n\n📎 Report attached: phase1_import_hygiene.csv`;\n\nconst csvContent = phase1Result.csv_report || 'No data';\n\nreturn [{\n  json: {\n    taskId,\n    comment,\n    filename: 'phase1_import_hygiene.csv'\n  },\n  binary: {\n    data: {\n      data: Buffer.from(csvContent).toString('base64'),\n      mimeType: 'text/csv',\n      fileName: 'phase1_import_hygiene.csv'\n    }\n  }\n}];"
+      },
+      "id": "prepare-phase1-comment",
+      "name": "Prepare Phase 1 Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.taskId }}/comment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "comment_text",
+              "value": "={{ $json.comment }}"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "comment-phase1",
+      "name": "Post Phase 1 Comment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2220, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst taskId = item.json.taskId;\nconst fileName = item.json.filename || 'phase1_import_hygiene.csv';\n\nif (!item.binary || !item.binary.data) {\n  return { json: { success: false, error: 'No binary data found' } };\n}\n\nconst binaryInfo = item.binary.data;\nconst fileBuffer = Buffer.from(binaryInfo.data, 'base64');\n\ntry {\n  const response = await this.helpers.request({\n    method: 'POST',\n    uri: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    headers: {\n      'Authorization': 'HARDCODED_CLICKUP_API_KEY'\n    },\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: fileName,\n          contentType: binaryInfo.mimeType || 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return { json: { success: true, status: 200, attachment: response } };\n} catch (error) {\n  return { json: { success: false, error: error.message, details: error.toString() } };\n}"
+      },
+      "id": "attach-phase1-csv",
+      "name": "Attach Phase 1 CSV",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 420],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "unit": "seconds",
+        "amount": 10
+      },
+      "id": "wait-for-api-sync",
+      "name": "Wait for API Sync",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [2440, 300],
+      "webhookId": "wait-for-sync"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data to pass to Phase 2\nconst phase1Result = $('Execute Phase 1').first().json;\nconst config = $('Extract Configuration').first().json;\n\nreturn [{\n  json: {\n    phase1_results: phase1Result.results || [],\n    ...config\n  }\n}];"
+      },
+      "id": "prepare-phase2-data",
+      "name": "Prepare Phase 2 Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{$workflow.id}}",
+        "fields": {
+          "values": [
+            {
+              "name": "inputData",
+              "stringValue": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "pass": {
+            "passMode": "all"
+          }
+        }
+      },
+      "id": "execute-phase2",
+      "name": "Execute Phase 2",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [2880, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare data to pass to Phase 3\nconst config = $('Extract Configuration').first().json;\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    custom_fields_spec: config.custom_fields_spec,\n    stages_spec: config.stages_spec,\n    sequence_template_ids: config.sequence_template_ids,\n    force_overwrite: config.force_overwrite\n  }\n}];"
+      },
+      "id": "prepare-phase3-data",
+      "name": "Prepare Phase 3 Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3100, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{$workflow.id}}",
+        "fields": {
+          "values": [
+            {
+              "name": "inputData",
+              "stringValue": "={{ JSON.stringify($json) }}"
+            }
+          ]
+        },
+        "options": {
+          "pass": {
+            "passMode": "all"
+          }
+        }
+      },
+      "id": "execute-phase3",
+      "name": "Execute Phase 3",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [3320, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare final status update for ClickUp task\nconst taskId = $('Get Task Details').first().json.id;\n\nreturn [{\n  json: {\n    taskId,\n    statusName: 'complete'\n  }\n}];"
+      },
+      "id": "prepare-status-update",
+      "name": "Prepare Status Update",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3540, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.taskId }}",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"{{ $json.statusName }}\"\n}",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "update-task-status",
+      "name": "Update Task Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3760, 300],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "ClickUp Webhook": {
+      "main": [[{ "node": "Get Task Details", "type": "main", "index": 0 }]]
+    },
+    "Get Task Details": {
+      "main": [[{ "node": "Check ClickUp Auth", "type": "main", "index": 0 }]]
+    },
+    "Check ClickUp Auth": {
+      "main": [[{ "node": "Set Status: In Progress", "type": "main", "index": 0 }]]
+    },
+    "Set Status: In Progress": {
+      "main": [[{ "node": "Extract Configuration", "type": "main", "index": 0 }]]
+    },
+    "Extract Configuration": {
+      "main": [[{ "node": "Check CSV Exists", "type": "main", "index": 0 }]]
+    },
+    "Check CSV Exists": {
+      "main": [[{ "node": "Download Mailbox CSV", "type": "main", "index": 0 }]]
+    },
+    "Download Mailbox CSV": {
+      "main": [[{ "node": "Combine Data", "type": "main", "index": 0 }]]
+    },
+    "Combine Data": {
+      "main": [[{ "node": "Execute Phase 1", "type": "main", "index": 0 }]]
+    },
+    "Execute Phase 1": {
+      "main": [[{ "node": "Prepare Phase 1 Comment", "type": "main", "index": 0 }]]
+    },
+    "Prepare Phase 1 Comment": {
+      "main": [
+        [{ "node": "Post Phase 1 Comment", "type": "main", "index": 0 }],
+        [{ "node": "Attach Phase 1 CSV", "type": "main", "index": 0 }]
+      ]
+    },
+    "Post Phase 1 Comment": {
+      "main": [[{ "node": "Wait for API Sync", "type": "main", "index": 0 }]]
+    },
+    "Attach Phase 1 CSV": {
+      "main": [[]]
+    },
+    "Wait for API Sync": {
+      "main": [[{ "node": "Prepare Phase 2 Data", "type": "main", "index": 0 }]]
+    },
+    "Prepare Phase 2 Data": {
+      "main": [[{ "node": "Execute Phase 2", "type": "main", "index": 0 }]]
+    },
+    "Execute Phase 2": {
+      "main": [[{ "node": "Prepare Phase 3 Data", "type": "main", "index": 0 }]]
+    },
+    "Prepare Phase 3 Data": {
+      "main": [[{ "node": "Execute Phase 3", "type": "main", "index": 0 }]]
+    },
+    "Execute Phase 3": {
+      "main": [[{ "node": "Prepare Status Update", "type": "main", "index": 0 }]]
+    },
+    "Prepare Status Update": {
+      "main": [[{ "node": "Update Task Status", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "",
+    "timezone": "America/New_York",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "2",
+  "id": "main-orchestrator",
+  "meta": {
+    "instanceId": "n8n"
+  },
+  "tags": []
+}

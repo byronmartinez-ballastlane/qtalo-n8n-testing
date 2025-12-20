@@ -1,0 +1,523 @@
+{
+  "name": "{{CLIENT_NAME}} - Phase 2: Signatures & Opt-Outs",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "phase2-signatures",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-start",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        140,
+        300
+      ],
+      "webhookId": "phase2-signatures"
+    },
+    {
+      "parameters": {},
+      "id": "start-node",
+      "name": "Start",
+      "type": "n8n-nodes-base.start",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.reply.io/v1/emailAccounts",
+        "authentication": "genericCredentialType",
+        "sendHeaders": false,
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "get-mailboxes",
+      "name": "Get All Mailboxes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        460,
+        300
+      ],
+      "alwaysOutputData": true,
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split mailboxes array into individual items\n// PRIORITY: Use API response (has IDs) and merge with Phase 1 config if available\nconst startData = $('Start').first().json;\n\n// Check if data was passed via workflow fields\nconst executionData = startData.inputData ? JSON.parse(startData.inputData) : startData;\nconst taskId = executionData.task_id;\n\n// Use $input.all() to get ALL items from previous node\nconst allItems = $input.all();\nconsole.log(`Received ${allItems.length} items from previous node`);\n\n// ============================================================\n// CHECK FOR REPLY.IO AUTH ERRORS (401/403)\n// ============================================================\nconst firstResponse = allItems[0]?.json || {};\nif (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.statusCode === 403 || \n    firstResponse.message?.includes('Unauthorized') || firstResponse.message?.includes('Forbidden')) {\n  \n  const errorMsg = firstResponse.error?.message || firstResponse.message || firstResponse.error || 'Authentication failed';\n  const statusCode = firstResponse.statusCode || firstResponse.error?.statusCode || 'unknown';\n  \n  console.error(`❌ Reply.io Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp\n  if (taskId && taskId !== 'unknown') {\n    try {\n      await this.helpers.request({\n        method: 'POST',\n        uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n        headers: {\n          'Authorization': HARDCODED_CLICKUP_API_KEY,\n          'Content-Type': 'application/json'\n        },\n        body: {\n          comment_text: `🚨 **Authentication Error - Reply.io API (Phase 2)**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the Reply.io API key is valid\\n2. Check if the API key has the correct permissions\\n3. Update the API key in the n8n workflow\\n\\n**API Endpoint:** GET /v1/emailAccounts\\n**Current API Key (last 8 chars):** ...${HARDCODED_REPLY_API_KEY.slice(-8)}`\n        },\n        json: true\n      });\n      console.log('✅ Posted Reply.io auth error comment to ClickUp');\n    } catch (commentError) {\n      console.error('Failed to post error comment:', commentError.message);\n    }\n  }\n  \n  throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n// ============================================================\n\n// Get config from Start node input (passed from orchestrator) or use defaults\n// Note: $env vars removed for n8n Cloud compatibility\nconst config = {\n  signature_template_plain: executionData.signature_template_plain || executionData.config?.signature_template_plain || '{{first_name}}',\n  opt_out_variants: executionData.opt_out_variants || executionData.config?.opt_out_variants || [\n    \"If you're ready to move on from my emails, just reply.\",\n    \"Not interested? Let me know.\",\n    \"Reply to unsubscribe.\"\n  ],\n  company_name: executionData.company_name || executionData.config?.company_name || '',\n  company_url: executionData.company_url || executionData.config?.company_url || '',\n  company_phone: executionData.company_phone || executionData.config?.company_phone || '',\n  force_overwrite: executionData.force_overwrite !== undefined ? executionData.force_overwrite : (executionData.config?.force_overwrite !== undefined ? executionData.config.force_overwrite : false),\n  task_id: taskId\n};\n\n// Handle different response structures:\n// API response returns array of mailbox objects, each item has the structure\nlet mailboxes = allItems.map(item => item.json);\nlet source = 'api';\n\nconsole.log(`Processing ${mailboxes.length} mailboxes from API response`);\n\nif (mailboxes.length === 0) {\n  return [{ json: { error: 'No mailboxes found to process', config, source } }];\n}\n\n// Merge with Phase 1 results for displayName if available\nconst phase1Results = executionData.phase1_results || [];\n\nreturn mailboxes.map(mailbox => {\n  // Find matching Phase 1 result by email\n  const phase1Match = phase1Results.find(p => \n    p.email && mailbox.emailAddress && p.email.toLowerCase() === mailbox.emailAddress.toLowerCase()\n  );\n  \n  return {\n    json: {\n      ...mailbox,\n      // Use Phase 1 displayName if available, otherwise use senderName from API\n      displayName: phase1Match?.displayName || mailbox.senderName,\n      config,\n      _source: source\n    }\n  };\n});"
+      },
+      "id": "split-mailboxes",
+      "name": "Split Mailboxes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        680,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Render signature template for ALL mailboxes\nconst items = $input.all();\n\nreturn items.map(item => {\n  const mailbox = item.json;\n  const config = mailbox.config || {};\n  \n  // Parse name from senderName or emailAddress\n  // API fields: id, senderName, emailAddress, signature\n  const emailAddress = mailbox.emailAddress || mailbox.email || '';\n  const displayName = mailbox.senderName || mailbox.displayName || (emailAddress ? emailAddress.split('@')[0] : 'User');\n  const nameParts = displayName.split(/[.\\s]+/);\n  const firstName = nameParts[0] ? (nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1)) : 'User';\n  const domain = emailAddress ? (emailAddress.match(/@(.+)$/)?.[1] || '') : '';\n  \n  // Template variables\n  const variables = {\n    first_name: firstName,\n    last_name: nameParts.slice(1).join(' '),\n    full_name: displayName,\n    email: emailAddress,\n    domain: domain,\n    company_name: config.company_name || '',\n    company_url: config.company_url || '',\n    phone: config.company_phone || ''\n  };\n  \n  // Render signature\n  let signature = config.signature_template_plain || '';\n  Object.keys(variables).forEach(key => {\n    const regex = new RegExp(`{{\\\\s*${key}\\\\s*}}`, 'g');\n    signature = signature.replace(regex, variables[key]);\n  });\n  \n  // Select random opt-out line\n  const optOutLines = config.opt_out_variants || [\n    \"If you're ready to move on from my emails, just reply.\",\n    \"Not interested? Let me know.\",\n    \"Reply to unsubscribe.\"\n  ];\n  const randomOptOut = optOutLines[Math.floor(Math.random() * optOutLines.length)];\n  \n  return {\n    json: {\n      mailbox_id: mailbox.id,\n      email: emailAddress,\n      senderName: mailbox.senderName || displayName,\n      signature: signature,\n      opt_out_line: randomOptOut,\n      force_overwrite: config.force_overwrite || false,\n      has_existing_signature: !!mailbox.signature\n    }\n  };\n});"
+      },
+      "id": "render-signature",
+      "name": "Render Signature & Opt-Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        900,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_existing_signature }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.force_overwrite }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-skip-sig",
+      "name": "Should Skip?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Phase 2 simplified: Just generate signature text for reporting for ALL items\n// Reply.io API doesn't support setting signatures via API\n// Signatures must be set manually in Reply.io UI\n\nconst items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  return {\n    json: {\n      email: data.email,\n      senderName: data.senderName,\n      signature: data.signature,\n      opt_out_line: data.opt_out_line,\n      status: 'success',\n      message: 'Signature generated (manual setup required in Reply.io UI)',\n      timestamp: new Date().toISOString()\n    }\n  };\n});"
+      },
+      "id": "set-signature",
+      "name": "Generate Signature Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        420
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Append opt-out line to signature for ALL items\n// Since Reply.io doesn't have separate opt-out endpoint,\n// we combine signature + opt-out into final signature\nconst items = $input.all();\n\nreturn items.map(item => {\n  const data = item.json;\n  \n  // Combine signature with opt-out line\n  const finalSignature = data.signature ? \n    `${data.signature}\\n\\n${data.opt_out_line}` : \n    data.opt_out_line;\n  \n  return {\n    json: {\n      ...data,\n      signature: finalSignature\n    }\n  };\n});"
+      },
+      "id": "combine-signature-optout",
+      "name": "Combine Signature + Opt-Out",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate report with full signature text\nconst items = $input.all();\n\nconst results = items.map(item => {\n  const data = item.json;\n  \n  return {\n    json: {\n      email: data.email || data.emailAddress,\n      status: data.error ? 'error' : data.skipped ? 'skipped' : 'success',\n      signatureApplied: !data.skipped && !data.error,\n      optOutApplied: !data.skipped && !data.error,\n      generatedSignature: data.generatedSignature || data.signature || '',\n      optOutLine: data.optOutLine || data.opt_out_line || '',\n      error: data.error || (data.skipped ? 'Already has signature, force_overwrite=false' : ''),\n      timestamp: new Date().toISOString()\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "generate-report",
+      "name": "Generate Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate CSV report\nconst items = $input.all();\n\n// Manual CSV generation (no external dependencies)\nconst headers = ['Email', 'Status', 'Generated Signature', 'Opt-Out Line', 'Message', 'Timestamp'];\nconst escapeCSV = (value) => {\n  if (value === null || value === undefined) return '';\n  const str = String(value);\n  if (str.includes(',') || str.includes('\"') || str.includes('\\n')) {\n    return `\"${str.replace(/\"/g, '\"\"')}\"`;\n  }\n  return str;\n};\n\nconst rows = items.map(item => [\n  escapeCSV(item.json.email || ''),\n  escapeCSV(item.json.status || ''),\n  escapeCSV(item.json.generatedSignature || ''),\n  escapeCSV(item.json.optOutLine || ''),\n  escapeCSV(item.json.message || ''),\n  escapeCSV(item.json.timestamp || '')\n]);\n\nconst csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\\n');\n\n// Generate summary\nconst total = items.length;\nconst successful = items.filter(i => i.json.status === 'success').length;\nconst failed = items.filter(i => i.json.status === 'error').length;\nconst skipped = items.filter(i => i.json.status === 'skipped').length;\n\n// Get task_id from Start node\nconst taskId = $('Start').first().json.task_id;\n\nreturn [{\n  json: {\n    task_id: taskId,\n    phase: 'Phase 2: Signatures & Opt-Outs',\n    csv: csv,\n    summary: {\n      total,\n      successful,\n      failed,\n      skipped,\n      successRate: total > 0 ? ((successful / total) * 100).toFixed(2) + '%' : '0%'\n    }\n  }\n}];"
+      },
+      "id": "create-csv",
+      "name": "Create CSV Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Upload CSV to ClickUp using this.helpers.request (same as Phase 1)\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id || $('Start').first().json.task_id;\nconst fileBuffer = Buffer.from(csvContent, 'utf8');\n\ntry {\n  const response = await this.helpers.request({\n    method: 'POST',\n    uri: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    headers: {\n      'Authorization': HARDCODED_CLICKUP_API_KEY\n    },\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: 'phase2_signatures.csv',\n          contentType: 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: true,\n      attachment_id: response.id,\n      attachment_url: response.url,\n      status: 'CSV uploaded successfully'\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: false,\n      error: error.message,\n      error_details: error.toString()\n    }\n  }];\n}"
+      },
+      "id": "upload-csv-clickup",
+      "name": "Upload CSV to ClickUp",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2400,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Phase 2 completion comment\nconst data = $('Create CSV Report').first().json;\nconst config = $('Start').first().json;\nconst summary = data.summary;\n\nconst comment = `✅ **Phase 2: Signatures & Opt-Outs Complete**\n\nMailboxes processed: ${summary.total}\n- Successful: ${summary.successful}\n- Failed: ${summary.failed}\n- Skipped: ${summary.skipped}\n- Success rate: ${summary.successRate}\n\n⚠️ **Important API Limitation:**\nReply.io API does not support programmatic signature or opt-out updates.\nThese must be applied manually in Reply.io UI.\n\n**Signature Template (to apply manually):**\n${'```'}\nRegards,\n${'{{first_name}}'} @ ${config.company_name || 'Your Company'}\nBusiness Development Manager\n${config.company_url || 'www.yourcompany.com'}\n${'{{domain}}'}\n${'```'}\n\n**Instructions:**\n1. Go to Reply.io → Settings → Email Accounts\n2. For each mailbox, apply the signature template above\n3. Replace ${'{{first_name}}'} with actual first name\n4. Replace ${'{{domain}}'} with email domain\n5. Add one opt-out variant at the bottom\n\n📎 Report attached above: phase2_signatures.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+      },
+      "id": "prepare-comment",
+      "name": "Prepare Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "comment_text",
+              "value": "={{ $json.comment }}"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "post-comment",
+      "name": "Post Comment to ClickUp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2800,
+        300
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare Lambda request with async webhook pattern\n// Collect all items that need signature updates (not skipped)\nconst items = $input.all();\n\n// Wait node webhook URL format: /webhook-waiting/{executionId}\n// Use n8n Cloud URL for production\nconst executionId = $execution.id;\nconst webhookUrl = `https://qtalospace.app.n8n.cloud/webhook-waiting/${executionId}`;\n\nconsole.log(`🔗 Webhook URL: ${webhookUrl}`);\nconsole.log(`📤 Lambda should GET this URL to resume workflow`);\n\n// Convert plain text signatures to HTML\nfunction textToHtml(text) {\n  if (!text) return '';\n  const lines = text.split('\\n').filter(line => line.trim());\n  const htmlLines = lines.map(line => {\n    // Bold lines that look like names (capitalized words)\n    if (line.match(/^[A-Z][a-z]+(\\s+[A-Z][a-z]+)*$/)) {\n      return `<p><strong>${line}</strong></p>`;\n    }\n    return `<p>${line}</p>`;\n  });\n  return htmlLines.join('');\n}\n\n// Prepare accounts array for Lambda\nconst accounts = items.map(item => ({\n  email: item.json.email,\n  accountId: String(item.json.mailbox_id),\n  signature: textToHtml(item.json.signature)\n}));\n\n// Store original items for later matching\nconst originalItems = items.map(item => item.json);\n\nreturn [{\n  json: {\n    replyioEmail: \"devin@qtalo.com\",\n    replyioPassword: \"mayday-lilly-shudders-ich-pining-waste1U\",\n    async: true,\n    webhookUrl: webhookUrl,\n    accounts,\n    _originalItems: originalItems\n  }\n}];"
+      },
+      "id": "prepare-lambda-request",
+      "name": "Prepare Lambda Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1560,
+        180
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://oc05p6ctz7.execute-api.us-east-1.amazonaws.com/prod/update-signatures",
+        "authentication": "none",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          },
+          "timeout": 30000
+        }
+      },
+      "id": "trigger-lambda-async",
+      "name": "Trigger Lambda Async",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1780,
+        180
+      ],
+      "continueOnFail": true,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "limit": 1800000,
+        "limitUnit": "ms",
+        "options": {
+          "httpMethod": "POST"
+        }
+      },
+      "id": "wait-for-lambda",
+      "name": "Wait for Lambda Callback",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1890,
+        180
+      ],
+      "webhookId": "lambda-signature-results"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Lambda webhook results and match to original items\n// Wait node receives Lambda GET request with query params\nconst webhookData = $input.first().json;\nconst triggerData = $('Prepare Lambda Request').first().json;\nconst originalItems = triggerData._originalItems || [];\n\nconsole.log('Webhook data received:', JSON.stringify(webhookData, null, 2));\n\n// Wait node puts query parameters in webhookData.query\n// Lambda sends: ?status=completed&timestamp=...&result={\"statusCode\":200,\"body\":\"{\\\"results\\\":[...]}\"}\nlet lambdaResults = [];\n\n// Check webhookData.query.result (GET query parameters)\nif (webhookData.query && webhookData.query.result) {\n  try {\n    // First parse: query.result -> {statusCode, body}\n    const lambdaResponse = typeof webhookData.query.result === 'string' \n      ? JSON.parse(webhookData.query.result) \n      : webhookData.query.result;\n    \n    console.log('Lambda response statusCode:', lambdaResponse.statusCode);\n    \n    // Second parse: body -> {results: [...]}\n    const bodyData = typeof lambdaResponse.body === 'string'\n      ? JSON.parse(lambdaResponse.body)\n      : lambdaResponse.body;\n    \n    lambdaResults = bodyData.results || [];\n    console.log(`✅ Parsed Lambda results for ${lambdaResults.length} accounts`);\n  } catch (error) {\n    console.error('❌ Failed to parse Lambda result:', error);\n    console.error('Error details:', error.message);\n  }\n} else {\n  console.error('❌ No query.result found in webhook data');\n  console.log('Available keys:', Object.keys(webhookData));\n  if (webhookData.query) {\n    console.log('Query keys:', Object.keys(webhookData.query));\n  }\n}\n\n// Match Lambda results to original items by email\nconst results = originalItems.map(item => {\n  const lambdaResult = lambdaResults.find(r => r.email === item.email) || {};\n  \n  return {\n    json: {\n      email: item.email,\n      status: lambdaResult.success ? 'success' : 'error',\n      signatureApplied: lambdaResult.success || false,\n      optOutApplied: lambdaResult.success || false,\n      generatedSignature: item.signature || '',\n      optOutLine: item.opt_out_line || '',\n      error: lambdaResult.success ? '' : (lambdaResult.error || 'Lambda update failed'),\n      verification: lambdaResult.verification || null,\n      timestamp: new Date().toISOString()\n    }\n  };\n});\n\nreturn results;"
+      },
+      "id": "parse-lambda-results",
+      "name": "Parse Lambda Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        180
+      ],
+      "alwaysOutputData": true
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get All Mailboxes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "Get All Mailboxes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Mailboxes": {
+      "main": [
+        [
+          {
+            "node": "Split Mailboxes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Mailboxes": {
+      "main": [
+        [
+          {
+            "node": "Render Signature & Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Render Signature & Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Combine Signature + Opt-Out",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine Signature + Opt-Out": {
+      "main": [
+        [
+          {
+            "node": "Should Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Skip?": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare Lambda Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Signature Report": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Lambda Request": {
+      "main": [
+        [
+          {
+            "node": "Trigger Lambda Async",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Lambda Async": {
+      "main": [
+        [
+          {
+            "node": "Wait for Lambda Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Lambda Callback": {
+      "main": [
+        [
+          {
+            "node": "Parse Lambda Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Lambda Results": {
+      "main": [
+        [
+          {
+            "node": "Generate Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Report": {
+      "main": [
+        [
+          {
+            "node": "Create CSV Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CSV Report": {
+      "main": [
+        [
+          {
+            "node": "Upload CSV to ClickUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload CSV to ClickUp": {
+      "main": [
+        [
+          {
+            "node": "Prepare Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Comment": {
+      "main": [
+        [
+          {
+            "node": "Post Comment to ClickUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "id": "phase2-signatures",
+  "meta": {
+    "instanceId": "n8n"
+  },
+  "tags": []
+}

@@ -1,0 +1,314 @@
+{
+  "name": "System - Workflow Replicator",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 24 }]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule (Daily) or Manual",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients",
+        "options": {}
+      },
+      "id": "get-all-clients",
+      "name": "Get All Active Clients",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse API response and extract clients\nconst response = $input.first().json;\nconst clients = response.clients || [];\n\nif (clients.length === 0) {\n  console.log('No clients found');\n  return [];\n}\n\n// Filter only active clients that need workflow deployment\nconst activeClients = clients.filter(c => c.status === 'active');\n\nconsole.log(`Found ${activeClients.length} active clients out of ${clients.length} total`);\n\nreturn activeClients.map(c => ({ json: c }));"
+      },
+      "id": "parse-clients",
+      "name": "Parse Clients",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if client needs workflow deployment\nconst CURRENT_TEMPLATE_VERSION = '2.0.0';\nconst client = $input.item.json;\n\n// Needs update if: different version OR missing any workflow IDs OR missing credentials\nconst workflowIds = client.workflow_ids || {};\nconst credentialIds = client.credential_ids || {};\nconst hasAllWorkflows = ['main-orchestrator', 'phase1-import-hygiene', 'phase2-signatures', 'phase3-standardize']\n  .every(w => workflowIds[w]);\nconst hasAllCredentials = credentialIds.clickup && credentialIds.reply;\n\nconst needsUpdate = client.template_version !== CURRENT_TEMPLATE_VERSION || !hasAllWorkflows || !hasAllCredentials;\n\nconsole.log(`Client ${client.client_id}: version=${client.template_version}, hasAllWorkflows=${hasAllWorkflows}, hasAllCredentials=${hasAllCredentials}, needsUpdate=${needsUpdate}`);\n\nreturn {\n  json: {\n    ...client,\n    needs_update: needsUpdate,\n    current_template_version: CURRENT_TEMPLATE_VERSION\n  }\n};"
+      },
+      "id": "check-version",
+      "name": "Check Template Version",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_update }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "needs-update-check",
+      "name": "Needs Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $json.client_id }}",
+        "options": {}
+      },
+      "id": "get-credentials",
+      "name": "Get Client Credentials",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Create n8n CREDENTIALS for this client (not just variables)\nconst clientData = $('Needs Update?').first().json;\nconst credentialsResponse = $input.first().json;\nconst credentials = credentialsResponse.credentials || {};\nconst n8nApiKey = $vars.N8N_API_KEY || '';\n\nconst clientId = clientData.client_id;\nconst clientName = clientData.client_name || clientId;\n\n// ClickUp credential name\nconst clickupCredName = `${clientName}-ClickUp-API`;\nconst replyCredName = `${clientName}-Reply-API`;\n\nlet clickupCredentialId = null;\nlet replyCredentialId = null;\n\n// Create ClickUp credential\ntry {\n  // First try to find existing credential by name\n  const existingCreds = await this.helpers.request({\n    method: 'GET',\n    uri: 'https://qtalospace.app.n8n.cloud/api/v1/credentials',\n    headers: { 'X-N8N-API-KEY': n8nApiKey },\n    json: true\n  });\n  \n  const existingClickup = existingCreds.data?.find(c => c.name === clickupCredName);\n  const existingReply = existingCreds.data?.find(c => c.name === replyCredName);\n  \n  if (existingClickup) {\n    clickupCredentialId = existingClickup.id;\n    console.log(`Found existing ClickUp credential: ${clickupCredentialId}`);\n  } else if (credentials.clickup_api_key) {\n    // Create new ClickUp credential\n    const clickupCred = await this.helpers.request({\n      method: 'POST',\n      uri: 'https://qtalospace.app.n8n.cloud/api/v1/credentials',\n      headers: {\n        'X-N8N-API-KEY': n8nApiKey,\n        'Content-Type': 'application/json'\n      },\n      body: {\n        name: clickupCredName,\n        type: 'httpHeaderAuth',\n        data: {\n          name: 'Authorization',\n          value: credentials.clickup_api_key\n        }\n      },\n      json: true\n    });\n    clickupCredentialId = clickupCred.id;\n    console.log(`Created ClickUp credential: ${clickupCredentialId}`);\n  }\n  \n  if (existingReply) {\n    replyCredentialId = existingReply.id;\n    console.log(`Found existing Reply credential: ${replyCredentialId}`);\n  } else if (credentials.reply_api_key) {\n    // Create new Reply credential\n    const replyCred = await this.helpers.request({\n      method: 'POST',\n      uri: 'https://qtalospace.app.n8n.cloud/api/v1/credentials',\n      headers: {\n        'X-N8N-API-KEY': n8nApiKey,\n        'Content-Type': 'application/json'\n      },\n      body: {\n        name: replyCredName,\n        type: 'httpHeaderAuth',\n        data: {\n          name: 'X-Api-Key',\n          value: credentials.reply_api_key\n        }\n      },\n      json: true\n    });\n    replyCredentialId = replyCred.id;\n    console.log(`Created Reply credential: ${replyCredentialId}`);\n  }\n  \n} catch (error) {\n  console.error('Error creating credentials:', error.message);\n}\n\nreturn [{\n  json: {\n    client_id: clientId,\n    client_name: clientName,\n    clickup_space_id: clientData.clickup_space_id,\n    workflow_ids: clientData.workflow_ids || {},\n    credential_ids: {\n      clickup: clickupCredentialId,\n      reply: replyCredentialId\n    },\n    credential_names: {\n      clickup: clickupCredName,\n      reply: replyCredName\n    },\n    reply_workspace_id: credentials.reply_workspace_id || 'default',\n    api_keys: {\n      clickup: credentials.clickup_api_key,\n      reply: credentials.reply_api_key\n    }\n  }\n}];"
+      },
+      "id": "create-credentials",
+      "name": "Create n8n Credentials",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare workflow deployments with client-specific credential IDs\nconst data = $input.first().json;\n\n// Templates to deploy\nconst templates = [\n  { templateName: 'phase1-import-hygiene', displayName: 'Phase 1: Import & Hygiene' },\n  { templateName: 'phase2-signatures', displayName: 'Phase 2: Signatures & Opt-Outs' },\n  { templateName: 'phase3-standardize', displayName: 'Phase 3: Standardize Workspace' },\n  { templateName: 'main-orchestrator', displayName: 'Main Orchestrator' }\n];\n\nreturn templates.map(t => ({\n  json: {\n    client_id: data.client_id,\n    client_name: data.client_name,\n    clickup_space_id: data.clickup_space_id,\n    workflow_ids: data.workflow_ids || {},\n    credential_ids: data.credential_ids,\n    credential_names: data.credential_names,\n    api_keys: data.api_keys,\n    template_name: t.templateName,\n    workflow_name: `${data.client_name} - ${t.displayName}`,\n    reply_workspace_id: data.reply_workspace_id\n  }\n}));"
+      },
+      "id": "prepare-deployments",
+      "name": "Prepare Workflow Deployments",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build workflow from template with client-specific CREDENTIALS\nconst item = $input.item.json;\nconst n8nApiKey = $vars.N8N_API_KEY || '';\n\n// Template base URL (GitHub raw)\nconst templateBaseUrl = 'https://raw.githubusercontent.com/qtalo/qtalo-n8n/main/templates';\n\n// Get the existing workflow ID if updating\nconst existingWorkflowId = item.workflow_ids[item.template_name];\nconst action = existingWorkflowId ? 'update' : 'create';\n\nlet workflowPayload;\n\ntry {\n  // Try to fetch the template from GitHub\n  const templateUrl = `${templateBaseUrl}/${item.template_name}.template.json`;\n  const template = await this.helpers.request({\n    method: 'GET',\n    uri: templateUrl,\n    json: true\n  });\n  \n  // Convert template to string, do replacements, convert back\n  let templateStr = JSON.stringify(template);\n  \n  // Replace credential ID placeholders with actual credential IDs\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_ID\\}\\}/g, item.credential_ids.clickup || '');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_ID\\}\\}/g, item.credential_ids.reply || '');\n  \n  // Replace client name placeholder\n  templateStr = templateStr.replace(/\\{\\{CLIENT_NAME\\}\\}/g, item.client_name);\n  \n  // Replace credential name placeholders\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_NAME\\}\\}/g, item.credential_names.clickup || 'ClickUp API');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_NAME\\}\\}/g, item.credential_names.reply || 'Reply.io API');\n  \n  // Replace API key placeholders for Code nodes that need direct access\n  // Format: HARDCODED_CLICKUP_API_KEY and HARDCODED_REPLY_API_KEY\n  templateStr = templateStr.replace(/HARDCODED_CLICKUP_API_KEY/g, item.api_keys.clickup || '');\n  templateStr = templateStr.replace(/HARDCODED_REPLY_API_KEY/g, item.api_keys.reply || '');\n  \n  workflowPayload = JSON.parse(templateStr);\n  workflowPayload.name = item.workflow_name;\n  workflowPayload.tags = [item.client_id];\n  \n} catch (fetchError) {\n  console.log(`Could not fetch template: ${fetchError.message}`);\n  \n  // Fallback: create minimal workflow placeholder\n  workflowPayload = {\n    name: item.workflow_name,\n    nodes: [{\n      parameters: {},\n      id: 'placeholder',\n      name: 'Placeholder - Template fetch failed',\n      type: 'n8n-nodes-base.noOp',\n      typeVersion: 1,\n      position: [240, 300]\n    }],\n    connections: {},\n    active: false,\n    settings: { executionOrder: 'v1' },\n    tags: [item.client_id]\n  };\n}\n\nreturn {\n  json: {\n    client_id: item.client_id,\n    client_name: item.client_name,\n    template_name: item.template_name,\n    workflow_name: item.workflow_name,\n    existing_workflow_id: existingWorkflowId || null,\n    action: action,\n    credential_ids: item.credential_ids,\n    workflow_payload: workflowPayload\n  }\n};"
+      },
+      "id": "build-workflow",
+      "name": "Build Workflow from Template",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "update",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-action",
+      "name": "Create or Update?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [2220, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.existing_workflow_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.workflow_payload) }}",
+        "options": {}
+      },
+      "id": "update-workflow-api",
+      "name": "Update Workflow (n8n API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2440, 100],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n8n-api-key",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qtalospace.app.n8n.cloud/api/v1/workflows",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.workflow_payload) }}",
+        "options": {}
+      },
+      "id": "create-workflow-api",
+      "name": "Create Workflow (n8n API)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2440, 300],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "n8n-api-key",
+          "name": "n8n API Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-workflow-results",
+      "name": "Merge Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [2660, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process API response and prepare for DynamoDB update\nconst response = $input.first().json;\nconst previousData = $('Build Workflow from Template').item.json;\n\nreturn {\n  json: {\n    client_id: previousData.client_id,\n    template_name: previousData.template_name,\n    workflow_name: previousData.workflow_name,\n    workflow_id: response.id || previousData.existing_workflow_id,\n    credential_ids: previousData.credential_ids,\n    action: previousData.action === 'update' ? 'updated' : 'created',\n    status: 'success'\n  }\n};"
+      },
+      "id": "process-response",
+      "name": "Process API Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 200]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/workflows",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"client_id\": \"{{ $json.client_id }}\",\n  \"workflow_ids\": {\n    \"{{ $json.template_name }}\": \"{{ $json.workflow_id }}\"\n  },\n  \"credential_ids\": {{ JSON.stringify($json.credential_ids) }}\n}",
+        "options": {}
+      },
+      "id": "update-dynamodb",
+      "name": "Update Client Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [3100, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Client skipped (no update needed)\nconst client = $input.item.json;\n\nreturn {\n  json: {\n    client_id: client.client_id,\n    client_name: client.client_name,\n    status: 'skipped',\n    reason: 'Already up to date'\n  }\n};"
+      },
+      "id": "skip-client",
+      "name": "Skip (No Update Needed)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Summarize all results\nconst allResults = $input.all().map(i => i.json);\n\nconst summary = {\n  total_clients: allResults.length,\n  updated: allResults.filter(r => r.status === 'success' || r.action).length,\n  skipped: allResults.filter(r => r.status === 'skipped').length,\n  errors: allResults.filter(r => r.status === 'error').length,\n  timestamp: new Date().toISOString(),\n  details: allResults\n};\n\nconsole.log('Replication Summary:', JSON.stringify(summary, null, 2));\n\nreturn [{ json: summary }];"
+      },
+      "id": "summarize",
+      "name": "Summarize Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3320, 300]
+    }
+  ],
+  "connections": {
+    "Schedule (Daily) or Manual": {
+      "main": [[{ "node": "Get All Active Clients", "type": "main", "index": 0 }]]
+    },
+    "Get All Active Clients": {
+      "main": [[{ "node": "Parse Clients", "type": "main", "index": 0 }]]
+    },
+    "Parse Clients": {
+      "main": [[{ "node": "Check Template Version", "type": "main", "index": 0 }]]
+    },
+    "Check Template Version": {
+      "main": [[{ "node": "Needs Update?", "type": "main", "index": 0 }]]
+    },
+    "Needs Update?": {
+      "main": [
+        [{ "node": "Get Client Credentials", "type": "main", "index": 0 }],
+        [{ "node": "Skip (No Update Needed)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Get Client Credentials": {
+      "main": [[{ "node": "Create n8n Credentials", "type": "main", "index": 0 }]]
+    },
+    "Create n8n Credentials": {
+      "main": [[{ "node": "Prepare Workflow Deployments", "type": "main", "index": 0 }]]
+    },
+    "Prepare Workflow Deployments": {
+      "main": [[{ "node": "Build Workflow from Template", "type": "main", "index": 0 }]]
+    },
+    "Build Workflow from Template": {
+      "main": [[{ "node": "Create or Update?", "type": "main", "index": 0 }]]
+    },
+    "Create or Update?": {
+      "main": [
+        [{ "node": "Update Workflow (n8n API)", "type": "main", "index": 0 }],
+        [{ "node": "Create Workflow (n8n API)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update Workflow (n8n API)": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 0 }]]
+    },
+    "Create Workflow (n8n API)": {
+      "main": [[{ "node": "Merge Results", "type": "main", "index": 1 }]]
+    },
+    "Merge Results": {
+      "main": [[{ "node": "Process API Response", "type": "main", "index": 0 }]]
+    },
+    "Process API Response": {
+      "main": [[{ "node": "Update Client Record", "type": "main", "index": 0 }]]
+    },
+    "Update Client Record": {
+      "main": [[{ "node": "Summarize Results", "type": "main", "index": 0 }]]
+    },
+    "Skip (No Update Needed)": {
+      "main": [[{ "node": "Summarize Results", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "4",
+  "meta": {
+    "instanceId": "n8n"
+  },
+  "tags": ["system"]
+}

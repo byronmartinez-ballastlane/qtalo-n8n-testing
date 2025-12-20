@@ -1,0 +1,112 @@
+name: Deploy Client Workflows
+
+on:
+  # Manual trigger from GitHub UI
+  workflow_dispatch:
+    inputs:
+      client_id:
+        description: 'Client ID to deploy workflows for'
+        required: true
+        type: string
+      deploy_mode:
+        description: 'Deployment mode'
+        required: false
+        default: 'single'
+        type: choice
+        options:
+          - single
+          - all-clients
+
+  # API trigger (from n8n or other services)
+  repository_dispatch:
+    types: [deploy-client]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Set client ID from input or event
+        id: set-client
+        run: |
+          if [ "${{ github.event_name }}" == "repository_dispatch" ]; then
+            echo "client_id=${{ github.event.client_payload.client_id }}" >> $GITHUB_OUTPUT
+            echo "mode=${{ github.event.client_payload.mode || 'single' }}" >> $GITHUB_OUTPUT
+            echo "callback_url=${{ github.event.client_payload.callback_url }}" >> $GITHUB_OUTPUT
+            echo "clickup_task_id=${{ github.event.client_payload.clickup_task_id }}" >> $GITHUB_OUTPUT
+            echo "client_name=${{ github.event.client_payload.client_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "client_id=${{ inputs.client_id }}" >> $GITHUB_OUTPUT
+            echo "mode=${{ inputs.deploy_mode }}" >> $GITHUB_OUTPUT
+            echo "callback_url=" >> $GITHUB_OUTPUT
+            echo "clickup_task_id=" >> $GITHUB_OUTPUT
+            echo "client_name=${{ inputs.client_id }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy workflows
+        env:
+          N8N_API_URL: ${{ secrets.N8N_API_URL }}
+          N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+          API_GATEWAY_URL: ${{ secrets.API_GATEWAY_URL }}
+          CLICKUP_API_KEY: ${{ secrets.CLICKUP_API_KEY }}
+        run: |
+          if [ "${{ steps.set-client.outputs.mode }}" == "all-clients" ]; then
+            echo "🔄 Deploying to all clients..."
+            npm run deploy -- --all-clients
+          else
+            echo "👤 Deploying for client: ${{ steps.set-client.outputs.client_id }}"
+            npm run deploy -- --client=${{ steps.set-client.outputs.client_id }}
+          fi
+
+      - name: Notify completion via n8n callback
+        if: success() && steps.set-client.outputs.callback_url != ''
+        run: |
+          CALLBACK_URL="${{ steps.set-client.outputs.callback_url }}"
+          echo "📝 Calling n8n callback: $CALLBACK_URL"
+          curl -s -X POST "$CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "status": "success",
+              "client_id": "${{ steps.set-client.outputs.client_id }}",
+              "client_name": "${{ steps.set-client.outputs.client_name }}",
+              "clickup_task_id": "${{ steps.set-client.outputs.clickup_task_id }}",
+              "run_id": "${{ github.run_id }}",
+              "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "workflows_deployed": ["phase-1", "phase-2", "phase-3", "main-orchestrator"]
+            }'
+
+      - name: Notify failure via n8n callback
+        if: failure() && steps.set-client.outputs.callback_url != ''
+        run: |
+          CALLBACK_URL="${{ steps.set-client.outputs.callback_url }}"
+          echo "📝 Calling n8n callback with failure: $CALLBACK_URL"
+          curl -s -X POST "$CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "status": "failed",
+              "client_id": "${{ steps.set-client.outputs.client_id }}",
+              "client_name": "${{ steps.set-client.outputs.client_name }}",
+              "clickup_task_id": "${{ steps.set-client.outputs.clickup_task_id }}",
+              "run_id": "${{ github.run_id }}",
+              "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "error": "Workflow deployment failed - check GitHub Actions logs"
+            }'

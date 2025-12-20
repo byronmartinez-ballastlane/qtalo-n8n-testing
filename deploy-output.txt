@@ -1,0 +1,52 @@
+
+> reply-clickup-automation@1.0.0 deploy
+> node scripts/deploy-professional.js
+
+
+[1m============================================================[0m
+[1mn8n Professional Deployment System[0m
+[1m============================================================[0m
+
+[34mℹ️ [0m API URL: http://localhost:5678/api/v1
+[34mℹ️ [0m Target: 🐳 Local Docker
+[34mℹ️ [0m Debug Mode: enabled
+
+[34mℹ️ [0m Testing connection to n8n...
+[32m✅[0m Connected to n8n successfully
+
+[1m============================================================[0m
+[1mSetting Up Credentials[0m
+[1m============================================================[0m
+
+[31m❌[0m Failed to get existing credentials: Request failed with status code 405
+[34mℹ️ [0m Creating credential: ClickUp API
+[32m✅[0m Created: ClickUp API (ID: zi8Y0RsgEZHzOuqk)
+[31m❌[0m Failed to get existing credentials: Request failed with status code 405
+[34mℹ️ [0m Creating credential: Reply.io API
+[32m✅[0m Created: Reply.io API (ID: BqpmSWZDwqeqJGCz)
+[34mℹ️ [0m Credentials setup complete: 2/2 successful
+
+[1m============================================================[0m
+[1mDeploying Workflows[0m
+[1m============================================================[0m
+
+
+📦 [1mQtalo - Phase 1: Import & Hygiene[0m
+   Nodes: 25
+[34mℹ️ [0m Workflow exists (ID: 6Tja4GTB5Td0a3Zb)
+[34mℹ️ [0m Updating...
+[32m✅[0m Updated successfully
+
+📦 [1mQtalo - Phase 2: Signatures & Opt-Outs[0m
+   Nodes: 15
+[34mℹ️ [0m Workflow exists (ID: FglFTyFjwzhj9Vqf)
+[34mℹ️ [0m Updating...
+[32m✅[0m Updated successfully
+
+📦 [1mQtalo - Phase 3: Standardize Workspace[0m
+   Nodes: 2
+[34mℹ️ [0m Workflow exists (ID: tZc9EpTJv1FV0HDY)
+[34mℹ️ [0m Updating...
+[32m✅[0m Updated successfully
+[31m❌[0m Deployment failed with unexpected error
+[31m❌[0m Expected property name or '}' in JSON at position 13211
