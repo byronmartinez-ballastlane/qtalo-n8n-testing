@@ -4,7 +4,9 @@
   "description": "Reply.io workspace automation via ClickUp",
   "scripts": {
     "deploy": "node scripts/deploy-professional.js",
-    "deploy:debug": "DEBUG=true node scripts/deploy-professional.js"
+    "deploy:debug": "DEBUG=true node scripts/deploy-professional.js",
+    "deploy:client": "node scripts/deploy-client-workflows.js",
+    "onboard": "node scripts/onboard-client.js"
   },
   "dependencies": {
     "axios": "^1.7.2",

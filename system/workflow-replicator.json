@@ -5,10 +5,11 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "replicate-workflows",
+        "responseMode": "lastNode",
         "options": {}
       },
       "id": "webhook-trigger",
-      "name": "Webhook Trigger",
+      "name": "Trigger Replication",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 1.1,
       "position": [240, 300],
@@ -17,18 +18,18 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients",
+        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.body.client_id }}",
         "options": {}
       },
-      "id": "get-all-clients",
-      "name": "Get All Active Clients",
+      "id": "get-client",
+      "name": "Get Client",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [460, 300]
     },
     {
       "parameters": {
-        "jsCode": "// Parse API response and extract clients\nconst response = $input.first().json;\nconst clients = response.clients || [];\n\nif (clients.length === 0) {\n  console.log('No clients found');\n  return [];\n}\n\n// Filter only active clients that need workflow deployment\nconst activeClients = clients.filter(c => c.status === 'active');\n\nconsole.log(`Found ${activeClients.length} active clients out of ${clients.length} total`);\n\nreturn activeClients.map(c => ({ json: c }));"
+        "jsCode": "// Get the single client from API response\nconst response = $input.first().json;\nconst client = response.client || response;\n\nif (!client || !client.client_id) {\n  throw new Error('No client found or invalid response');\n}\n\nconsole.log(`Processing client: ${client.client_id}`);\n\nreturn [{ json: client }];"
       },
       "id": "parse-clients",
       "name": "Parse Clients",
@@ -108,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build workflow from template with client-specific CREDENTIALS\nconst item = $input.item.json;\nconst n8nApiKey = $vars.N8N_API_KEY || '';\n\n// Template base URL (GitHub raw) - using new testing repo\nconst templateBaseUrl = 'https://raw.githubusercontent.com/byronmartinez-ballastlane/qtalo-n8n-testing/main/templates';\n\n// Get the existing workflow ID if updating\nconst existingWorkflowId = item.workflow_ids[item.template_name];\nconst action = existingWorkflowId ? 'update' : 'create';\n\nlet workflowPayload;\n\ntry {\n  // Try to fetch the template from GitHub\n  const templateUrl = `${templateBaseUrl}/${item.template_name}.template.json`;\n  const template = await this.helpers.request({\n    method: 'GET',\n    uri: templateUrl,\n    json: true\n  });\n  \n  // Convert template to string, do replacements, convert back\n  let templateStr = JSON.stringify(template);\n  \n  // Replace credential ID placeholders with actual credential IDs\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_ID\\}\\}/g, item.credential_ids.clickup || '');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_ID\\}\\}/g, item.credential_ids.reply || '');\n  \n  // Replace client name placeholder\n  templateStr = templateStr.replace(/\\{\\{CLIENT_NAME\\}\\}/g, item.client_name);\n  \n  // Replace credential name placeholders\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_NAME\\}\\}/g, item.credential_names.clickup || 'ClickUp API');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_NAME\\}\\}/g, item.credential_names.reply || 'Reply.io API');\n  \n  // Replace API key placeholders for Code nodes that need direct access\n  // Format: HARDCODED_CLICKUP_API_KEY and HARDCODED_REPLY_API_KEY\n  templateStr = templateStr.replace(/HARDCODED_CLICKUP_API_KEY/g, item.api_keys.clickup || '');\n  templateStr = templateStr.replace(/HARDCODED_REPLY_API_KEY/g, item.api_keys.reply || '');\n  \n  workflowPayload = JSON.parse(templateStr);\n  workflowPayload.name = item.workflow_name;\n  workflowPayload.tags = [item.client_id];\n  \n} catch (fetchError) {\n  console.log(`Could not fetch template: ${fetchError.message}`);\n  \n  // Fallback: create minimal workflow placeholder\n  workflowPayload = {\n    name: item.workflow_name,\n    nodes: [{\n      parameters: {},\n      id: 'placeholder',\n      name: 'Placeholder - Template fetch failed',\n      type: 'n8n-nodes-base.noOp',\n      typeVersion: 1,\n      position: [240, 300]\n    }],\n    connections: {},\n    active: false,\n    settings: { executionOrder: 'v1' },\n    tags: [item.client_id]\n  };\n}\n\nreturn {\n  json: {\n    client_id: item.client_id,\n    client_name: item.client_name,\n    template_name: item.template_name,\n    workflow_name: item.workflow_name,\n    existing_workflow_id: existingWorkflowId || null,\n    action: action,\n    credential_ids: item.credential_ids,\n    workflow_payload: workflowPayload\n  }\n};"
+        "jsCode": "// Build workflow from template with client-specific CREDENTIALS\nconst item = $input.item.json;\nconst n8nApiKey = $vars.N8N_API_KEY || '';\n\n// Template base URL (GitHub raw) - using new testing repo\nconst templateBaseUrl = 'https://raw.githubusercontent.com/byronmartinez-ballastlane/qtalo-n8n-testing/main/templates';\n\n// Get the existing workflow ID if updating\nconst existingWorkflowId = item.workflow_ids[item.template_name];\nconst action = existingWorkflowId ? 'update' : 'create';\n\n// Helper function to clean node objects - remove properties n8n API doesn't accept\nfunction cleanNode(node) {\n  // Only keep valid node properties for n8n API\n  const validNodeProps = ['parameters', 'id', 'name', 'type', 'typeVersion', 'position', 'credentials', 'webhookId', 'disabled', 'notes', 'notesInFlow'];\n  const cleaned = {};\n  for (const key of validNodeProps) {\n    if (node[key] !== undefined) {\n      cleaned[key] = node[key];\n    }\n  }\n  // Clean up credentials - remove if empty id\n  if (cleaned.credentials) {\n    const cleanedCreds = {};\n    for (const [credType, credInfo] of Object.entries(cleaned.credentials)) {\n      if (credInfo && credInfo.id && credInfo.id !== '') {\n        cleanedCreds[credType] = credInfo;\n      } else if (credInfo && credInfo.name && credInfo.name !== '') {\n        // Keep credential with name only if id is empty (n8n will resolve by name)\n        cleanedCreds[credType] = { name: credInfo.name };\n      }\n    }\n    if (Object.keys(cleanedCreds).length > 0) {\n      cleaned.credentials = cleanedCreds;\n    } else {\n      delete cleaned.credentials;\n    }\n  }\n  return cleaned;\n}\n\nlet workflowPayload;\n\ntry {\n  // Try to fetch the template from GitHub\n  const templateUrl = `${templateBaseUrl}/${item.template_name}.template.json`;\n  const template = await this.helpers.request({\n    method: 'GET',\n    uri: templateUrl,\n    json: true\n  });\n  \n  // Convert template to string, do replacements, convert back\n  let templateStr = JSON.stringify(template);\n  \n  // Replace credential ID placeholders with actual credential IDs\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_ID\\}\\}/g, item.credential_ids.clickup || '');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_ID\\}\\}/g, item.credential_ids.reply || '');\n  \n  // Replace client name placeholder\n  templateStr = templateStr.replace(/\\{\\{CLIENT_NAME\\}\\}/g, item.client_name);\n  \n  // Replace credential name placeholders\n  templateStr = templateStr.replace(/\\{\\{CLICKUP_CREDENTIAL_NAME\\}\\}/g, item.credential_names.clickup || 'ClickUp API');\n  templateStr = templateStr.replace(/\\{\\{REPLY_CREDENTIAL_NAME\\}\\}/g, item.credential_names.reply || 'Reply.io API');\n  \n  // Replace API key placeholders for Code nodes that need direct access\n  templateStr = templateStr.replace(/HARDCODED_CLICKUP_API_KEY/g, item.api_keys.clickup || '');\n  templateStr = templateStr.replace(/HARDCODED_REPLY_API_KEY/g, item.api_keys.reply || '');\n  \n  const parsedTemplate = JSON.parse(templateStr);\n  \n  // Clean nodes - remove invalid properties like alwaysOutputData, continueOnFail, etc.\n  const cleanedNodes = (parsedTemplate.nodes || []).map(cleanNode);\n  \n  // n8n API only accepts these fields - filter out everything else\n  workflowPayload = {\n    name: item.workflow_name,\n    nodes: cleanedNodes,\n    connections: parsedTemplate.connections || {},\n    settings: parsedTemplate.settings || { executionOrder: 'v1' }\n  };\n  \n} catch (fetchError) {\n  console.log(`Could not fetch template: ${fetchError.message}`);\n  \n  // Fallback: create minimal workflow placeholder\n  workflowPayload = {\n    name: item.workflow_name,\n    nodes: [{\n      parameters: {},\n      id: 'placeholder',\n      name: 'Placeholder - Template fetch failed',\n      type: 'n8n-nodes-base.noOp',\n      typeVersion: 1,\n      position: [240, 300]\n    }],\n    connections: {},\n    settings: { executionOrder: 'v1' }\n  };\n}\n\nreturn {\n  json: {\n    client_id: item.client_id,\n    client_name: item.client_name,\n    template_name: item.template_name,\n    workflow_name: item.workflow_name,\n    existing_workflow_id: existingWorkflowId || null,\n    action: action,\n    credential_ids: item.credential_ids,\n    workflow_payload: workflowPayload\n  }\n};"
       },
       "id": "build-workflow",
       "name": "Build Workflow from Template",
@@ -148,7 +149,7 @@
       "parameters": {
         "method": "PUT",
         "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.existing_workflow_id }}",
-        "authentication": "predefinedCredentialType",
+        "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -173,7 +174,7 @@
       "parameters": {
         "method": "POST",
         "url": "https://qtalospace.app.n8n.cloud/api/v1/workflows",
-        "authentication": "predefinedCredentialType",
+        "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -252,10 +253,10 @@
     }
   ],
   "connections": {
-    "Webhook Trigger": {
-      "main": [[{ "node": "Get All Active Clients", "type": "main", "index": 0 }]]
+    "Trigger Replication": {
+      "main": [[{ "node": "Get Client", "type": "main", "index": 0 }]]
     },
-    "Get All Active Clients": {
+    "Get Client": {
       "main": [[{ "node": "Parse Clients", "type": "main", "index": 0 }]]
     },
     "Parse Clients": {
