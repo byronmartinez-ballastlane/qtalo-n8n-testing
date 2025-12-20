@@ -35,3 +35,12 @@ scripts/jira-setup.js
 scripts/update-jira-assignees.js
 *.tfstate
 *.tfstate.backup
+# Deployed workflows (may contain credentials) - only templates should be tracked
+workflows/
+clients/
+
+# Backup files with node_modules
+backup/
+
+# Lambda deploy artifacts
+replyio-lambda-deploy/
