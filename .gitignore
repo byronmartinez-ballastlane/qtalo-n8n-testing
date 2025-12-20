@@ -22,3 +22,6 @@ backups/
 .DS_Store
 Thumbs.db
 .env
+# Large files
+infrastructure/terraform/.terraform/
+*.zip
