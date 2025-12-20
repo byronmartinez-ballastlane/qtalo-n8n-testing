@@ -36,7 +36,7 @@ scripts/update-jira-assignees.js
 *.tfstate
 *.tfstate.backup
 # Deployed workflows (may contain credentials) - only templates should be tracked
-workflows/
+/workflows/
 clients/
 
 # Backup files with node_modules
