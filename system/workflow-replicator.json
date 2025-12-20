@@ -3,15 +3,16 @@
   "nodes": [
     {
       "parameters": {
-        "rule": {
-          "interval": [{ "field": "hours", "hoursInterval": 24 }]
-        }
+        "httpMethod": "POST",
+        "path": "replicate-workflows",
+        "options": {}
       },
-      "id": "schedule-trigger",
-      "name": "Schedule (Daily) or Manual",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.2,
-      "position": [240, 300]
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [240, 300],
+      "webhookId": "replicate-workflows"
     },
     {
       "parameters": {
@@ -147,8 +148,16 @@
       "parameters": {
         "method": "PUT",
         "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.existing_workflow_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $vars.N8N_API_KEY }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.workflow_payload) }}",
@@ -158,20 +167,22 @@
       "name": "Update Workflow (n8n API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2440, 100],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "n8n-api-key",
-          "name": "n8n API Key"
-        }
-      }
+      "position": [2440, 100]
     },
     {
       "parameters": {
         "method": "POST",
         "url": "https://qtalospace.app.n8n.cloud/api/v1/workflows",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
+        "authentication": "predefinedCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-N8N-API-KEY",
+              "value": "={{ $vars.N8N_API_KEY }}"
+            }
+          ]
+        },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.workflow_payload) }}",
@@ -181,13 +192,7 @@
       "name": "Create Workflow (n8n API)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2440, 300],
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "n8n-api-key",
-          "name": "n8n API Key"
-        }
-      }
+      "position": [2440, 300]
     },
     {
       "parameters": {
@@ -247,7 +252,7 @@
     }
   ],
   "connections": {
-    "Schedule (Daily) or Manual": {
+    "Webhook Trigger": {
       "main": [[{ "node": "Get All Active Clients", "type": "main", "index": 0 }]]
     },
     "Get All Active Clients": {
