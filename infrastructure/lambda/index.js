@@ -91,6 +91,11 @@ exports.handler = async (event) => {
       return await getCredentials(clientId);
     }
     
+    if (path.includes('/credentials') && method === 'PUT') {
+      const clientId = event.pathParameters?.clientId;
+      return await updateCredentials(clientId, body);
+    }
+    
     if (path.includes('/sync') && method === 'POST') {
       return await syncClients(body);
     }
@@ -412,6 +417,72 @@ async function getCredentials(clientId) {
       return response(404, { error: 'Credentials not found for client' });
     }
     throw error;
+  }
+}
+
+async function updateCredentials(clientId, body) {
+  if (!clientId) {
+    return response(400, { error: 'client_id is required' });
+  }
+  
+  const { reply_api_key, clickup_api_key, reply_workspace_id, clickup_workspace_id } = body;
+  
+  if (!reply_api_key && !clickup_api_key) {
+    return response(400, { error: 'At least one credential (reply_api_key or clickup_api_key) is required' });
+  }
+  
+  const secretName = `n8n/clients/${clientId}`;
+  
+  try {
+    // Try to get existing credentials first
+    let existingCredentials = {};
+    try {
+      const existing = await secretsClient.send(new GetSecretValueCommand({
+        SecretId: secretName
+      }));
+      existingCredentials = JSON.parse(existing.SecretString);
+    } catch (error) {
+      if (error.name !== 'ResourceNotFoundException') {
+        throw error;
+      }
+      // Secret doesn't exist, we'll create it
+    }
+    
+    // Merge with existing credentials
+    const updatedCredentials = {
+      ...existingCredentials,
+      ...(reply_api_key && { reply_api_key }),
+      ...(clickup_api_key && { clickup_api_key }),
+      ...(reply_workspace_id && { reply_workspace_id }),
+      ...(clickup_workspace_id && { clickup_workspace_id })
+    };
+    
+    // Try to update, or create if doesn't exist
+    try {
+      await secretsClient.send(new UpdateSecretCommand({
+        SecretId: secretName,
+        SecretString: JSON.stringify(updatedCredentials)
+      }));
+    } catch (error) {
+      if (error.name === 'ResourceNotFoundException') {
+        // Create the secret
+        await secretsClient.send(new CreateSecretCommand({
+          Name: secretName,
+          SecretString: JSON.stringify(updatedCredentials),
+          Description: `Credentials for n8n client: ${clientId}`
+        }));
+      } else {
+        throw error;
+      }
+    }
+    
+    return response(200, {
+      message: 'Credentials updated successfully',
+      client_id: clientId
+    });
+  } catch (error) {
+    console.error('Error updating credentials:', error);
+    return response(500, { error: 'Failed to update credentials', details: error.message });
   }
 }
 
