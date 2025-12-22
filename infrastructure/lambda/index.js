@@ -425,10 +425,10 @@ async function updateCredentials(clientId, body) {
     return response(400, { error: 'client_id is required' });
   }
   
-  const { reply_api_key, clickup_api_key, reply_workspace_id, clickup_workspace_id } = body;
+  const { reply_api_key, clickup_api_key, reply_workspace_id, clickup_workspace_id, reply_io_user, reply_io_password } = body;
   
-  if (!reply_api_key && !clickup_api_key) {
-    return response(400, { error: 'At least one credential (reply_api_key or clickup_api_key) is required' });
+  if (!reply_api_key && !clickup_api_key && !reply_io_user) {
+    return response(400, { error: 'At least one credential is required' });
   }
   
   const secretName = `n8n/clients/${clientId}`;
@@ -454,7 +454,9 @@ async function updateCredentials(clientId, body) {
       ...(reply_api_key && { reply_api_key }),
       ...(clickup_api_key && { clickup_api_key }),
       ...(reply_workspace_id && { reply_workspace_id }),
-      ...(clickup_workspace_id && { clickup_workspace_id })
+      ...(clickup_workspace_id && { clickup_workspace_id }),
+      ...(reply_io_user && { reply_io_user }),
+      ...(reply_io_password && { reply_io_password })
     };
     
     // Try to update, or create if doesn't exist

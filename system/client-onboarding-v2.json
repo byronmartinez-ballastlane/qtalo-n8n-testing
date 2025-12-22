@@ -24,7 +24,7 @@
       "parameters": {
         "mode": "raw",
         "options": {},
-        "jsonOutput": "={\n  \"client_id\": \"{{ $json.body.client_id.toLowerCase().replace(/[^a-z0-9-]/g, '-') }}\",\n  \"client_name\": \"{{ $json.body.client_name || $json.body.client_id }}\",\n  \"reply_api_key\": \"{{ $json.body.reply_api_key }}\",\n  \"clickup_api_key\": \"{{ $json.body.clickup_api_key || '' }}\",\n  \"clickup_task_id\": \"{{ $json.body.clickup_task_id || '' }}\",\n  \"github_owner\": \"byronmartinez-ballastlane\",\n  \"github_repo\": \"qtalo-n8n-testing\",\n  \"templates_path\": \"templates\"\n}"
+        "jsonOutput": "={\n  \"client_id\": \"{{ $json.body.client_id.toLowerCase().replace(/[^a-z0-9-]/g, '-') }}\",\n  \"client_name\": \"{{ $json.body.client_name || $json.body.client_id }}\",\n  \"reply_api_key\": \"{{ $json.body.reply_api_key }}\",\n  \"reply_io_user\": \"{{ $json.body.reply_io_user || '' }}\",\n  \"reply_io_password\": \"{{ $json.body.reply_io_password || '' }}\",\n  \"clickup_api_key\": \"{{ $json.body.clickup_api_key || '' }}\",\n  \"clickup_task_id\": \"{{ $json.body.clickup_task_id || '' }}\",\n  \"github_owner\": \"byronmartinez-ballastlane\",\n  \"github_repo\": \"qtalo-n8n-testing\",\n  \"templates_path\": \"templates\"\n}"
       }
     },
     {
@@ -67,7 +67,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"reply_api_key\": \"{{ $('Extract Client Info').item.json.reply_api_key }}\",\n  \"clickup_api_key\": \"{{ $('Extract Client Info').item.json.clickup_api_key }}\"\n}",
+        "jsonBody": "={\n  \"reply_api_key\": \"{{ $('Extract Client Info').item.json.reply_api_key }}\",\n  \"reply_io_user\": \"{{ $('Extract Client Info').item.json.reply_io_user }}\",\n  \"reply_io_password\": \"{{ $('Extract Client Info').item.json.reply_io_password }}\",\n  \"clickup_api_key\": \"{{ $('Extract Client Info').item.json.clickup_api_key }}\"\n}",
         "options": {}
       }
     },
