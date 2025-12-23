@@ -56,6 +56,12 @@ exports.handler = async (event) => {
   try {
     // Route handling
     
+    // Check for /clients/claim/{taskId} path pattern - claim a task to prevent race conditions
+    if (path.includes('/clients/claim/') && method === 'PUT') {
+      const taskId = path.split('/clients/claim/')[1];
+      return await claimTask(taskId);
+    }
+    
     // Check for /clients/by-task/{taskId} path pattern first
     if (path.includes('/clients/by-task/') && method === 'GET') {
       const taskId = path.split('/clients/by-task/')[1];
@@ -173,6 +179,38 @@ async function getClientByTaskId(taskId) {
   
   // Return first match with exists: true
   return response(200, { exists: true, client: result.Items[0] });
+}
+
+// Claim a task_id to prevent race conditions during onboarding
+// Creates a placeholder record immediately so concurrent webhooks see it exists
+async function claimTask(taskId) {
+  // First check if already claimed
+  const existing = await docClient.send(new ScanCommand({
+    TableName: TABLE_NAME,
+    FilterExpression: 'clickup_task_id = :taskId',
+    ExpressionAttributeValues: { ':taskId': taskId }
+  }));
+  
+  if (existing.Items && existing.Items.length > 0) {
+    return response(200, { claimed: false, reason: 'already_exists', task_id: taskId });
+  }
+  
+  // Create a placeholder record with just the task_id
+  const placeholderId = `claiming-${taskId}-${Date.now()}`;
+  
+  await docClient.send(new PutCommand({
+    TableName: TABLE_NAME,
+    Item: {
+      client_id: placeholderId,
+      clickup_task_id: taskId,
+      status: 'claiming',
+      created_at: new Date().toISOString()
+    },
+    // Condition to prevent race condition at DB level
+    ConditionExpression: 'attribute_not_exists(client_id)'
+  }));
+  
+  return response(200, { claimed: true, task_id: taskId, placeholder_id: placeholderId });
 }
 
 async function onboardClient(body) {

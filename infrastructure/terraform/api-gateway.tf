@@ -205,6 +205,88 @@ resource "aws_api_gateway_integration" "client_id_delete" {
 }
 
 # ============================================================
+# /clients/claim/{taskId} endpoint - Claim a task to prevent race conditions
+# ============================================================
+
+resource "aws_api_gateway_resource" "claim" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.clients.id
+  path_part   = "claim"
+}
+
+resource "aws_api_gateway_resource" "claim_task_id" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  parent_id   = aws_api_gateway_resource.claim.id
+  path_part   = "{taskId}"
+}
+
+# PUT /clients/claim/{taskId}
+resource "aws_api_gateway_method" "claim_put" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.claim_task_id.id
+  http_method   = "PUT"
+  authorization = "NONE"
+
+  request_parameters = {
+    "method.request.path.taskId" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "claim_put" {
+  rest_api_id             = aws_api_gateway_rest_api.api.id
+  resource_id             = aws_api_gateway_resource.claim_task_id.id
+  http_method             = aws_api_gateway_method.claim_put.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.client_manager.invoke_arn
+}
+
+# OPTIONS /clients/claim/{taskId} - CORS
+resource "aws_api_gateway_method" "claim_options" {
+  rest_api_id   = aws_api_gateway_rest_api.api.id
+  resource_id   = aws_api_gateway_resource.claim_task_id.id
+  http_method   = "OPTIONS"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_integration" "claim_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.claim_task_id.id
+  http_method = aws_api_gateway_method.claim_options.http_method
+  type        = "MOCK"
+
+  request_templates = {
+    "application/json" = "{\"statusCode\": 200}"
+  }
+}
+
+resource "aws_api_gateway_method_response" "claim_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.claim_task_id.id
+  http_method = aws_api_gateway_method.claim_options.http_method
+  status_code = "200"
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = true
+    "method.response.header.Access-Control-Allow-Methods" = true
+    "method.response.header.Access-Control-Allow-Origin"  = true
+  }
+}
+
+resource "aws_api_gateway_integration_response" "claim_options" {
+  rest_api_id = aws_api_gateway_rest_api.api.id
+  resource_id = aws_api_gateway_resource.claim_task_id.id
+  http_method = aws_api_gateway_method.claim_options.http_method
+  status_code = aws_api_gateway_method_response.claim_options.status_code
+
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Methods" = "'PUT,OPTIONS'"
+    "method.response.header.Access-Control-Allow-Origin"  = "'*'"
+  }
+}
+
+# ============================================================
 # /clients/by-task/{taskId} endpoint - Lookup by ClickUp task
 # ============================================================
 

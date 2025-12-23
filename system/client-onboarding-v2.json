@@ -31,20 +31,41 @@
     {
       "id": "check-dedupe",
       "name": "Task Already Onboarded?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Check if task exists and set routing flag\nconst data = $input.first().json;\nconst exists = data.exists === true;\n\n// Return item with explicit isNew flag\nreturn [{\n  json: {\n    ...data,\n    isNew: !exists\n  }\n}];"
+      }
+    },
+    {
+      "id": "route-dedup",
+      "name": "Route By Dedup Result",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [500, 300],
+      "position": [580, 300],
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false },
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
           "conditions": [
             {
-              "leftValue": "={{ $json.exists }}",
+              "leftValue": "={{ $json.isNew }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "notEquals" }
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
             }
-          ]
-        }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       }
     },
     {
@@ -60,11 +81,80 @@
       }
     },
     {
+      "id": "claim-task",
+      "name": "Claim Task in DynamoDB",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [700, 300],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/claim/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
+        "authentication": "none",
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "{ \"status\": \"claiming\" }",
+        "options": {}
+      }
+    },
+    {
+      "id": "check-claim-result",
+      "name": "Check Claim Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [760, 300],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Check if claim was successful\nconst data = $input.first().json;\nconst claimed = data.claimed === true;\n\n// Return item with explicit claimSuccess flag\nreturn [{\n  json: {\n    ...data,\n    claimSuccess: claimed\n  }\n}];"
+      }
+    },
+    {
+      "id": "route-claim-result",
+      "name": "Route By Claim Result",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [840, 300],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.claimSuccess }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "claim-failed-response",
+      "name": "Claim Failed Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [880, 500],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Task already being processed by another execution\", \"task_id\": \"{{ $('Webhook: Onboard Client').item.json.body.task_id }}\" }",
+        "options": {}
+      }
+    },
+    {
       "id": "check-status",
       "name": "Check If Onboarding Status",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [700, 300],
+      "position": [820, 300],
       "parameters": {
         "conditions": {
           "options": {
@@ -605,9 +695,24 @@
       "main": [[{ "node": "Task Already Onboarded?", "type": "main", "index": 0 }]]
     },
     "Task Already Onboarded?": {
+      "main": [[{ "node": "Route By Dedup Result", "type": "main", "index": 0 }]]
+    },
+    "Route By Dedup Result": {
+      "main": [
+        [{ "node": "Claim Task in DynamoDB", "type": "main", "index": 0 }],
+        [{ "node": "Already Onboarded Response", "type": "main", "index": 0 }]
+      ]
+    },
+    "Claim Task in DynamoDB": {
+      "main": [[{ "node": "Check Claim Result", "type": "main", "index": 0 }]]
+    },
+    "Check Claim Result": {
+      "main": [[{ "node": "Route By Claim Result", "type": "main", "index": 0 }]]
+    },
+    "Route By Claim Result": {
       "main": [
         [{ "node": "Check If Onboarding Status", "type": "main", "index": 0 }],
-        [{ "node": "Already Onboarded Response", "type": "main", "index": 0 }]
+        [{ "node": "Claim Failed Response", "type": "main", "index": 0 }]
       ]
     },
     "Check If Onboarding Status": {
