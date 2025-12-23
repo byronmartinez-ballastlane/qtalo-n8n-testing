@@ -16,7 +16,7 @@ echo ""
 # Configuration
 N8N_URL="http://localhost:5678"
 WEBHOOK_PATH="clickup-reply-setup"
-REPLY_API_KEY="vljMqVejupnbkvRNAJLPbjCM"
+REPLY_API_KEY=""
 CLICKUP_TASK_ID="86acb0atg"
 
 echo "📋 Step 1: Check n8n is running..."

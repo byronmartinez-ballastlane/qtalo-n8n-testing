@@ -443,7 +443,7 @@
             "parameters": [
               {
                 "name": "x-api-key",
-                "value": "vljMqVejupnbkvRNAJLPbjCM"
+                "value": ""
               }
             ]
           },
@@ -531,7 +531,7 @@
             "parameters": [
               {
                 "name": "x-api-key",
-                "value": "vljMqVejupnbkvRNAJLPbjCM"
+                "value": ""
               },
               {
                 "name": "Content-Type",

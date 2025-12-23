@@ -494,8 +494,8 @@ class N8nDeploymentManager {
         }
         
         // Replace hardcoded Reply.io API key references with $env variable
-        // Pattern: 'vljMqVejupnbkvRNAJLPbjCM' (the Reply API key)
-        const replyKeyPattern = /'vljMqVejupnbkvRNAJLPbjCM'/g;
+        // Pattern: '' (the Reply API key)
+        const replyKeyPattern = /''/g;
         if (replyKeyPattern.test(jsCode)) {
           jsCode = jsCode.replace(replyKeyPattern, '$env.REPLY_API_KEY');
           modified = true;

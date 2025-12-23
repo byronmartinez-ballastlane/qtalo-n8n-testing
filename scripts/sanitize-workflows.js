@@ -14,8 +14,8 @@ const fs = require('fs');
 const path = require('path');
 
 // Hardcoded values to remove
-const CLICKUP_API_KEY = 'pk_111957980_1GNNPQ7J2RN4UF5TIU5LAB2RJIYW5T2P';
-const REPLY_API_KEY = 'vljMqVejupnbkvRNAJLPbjCM';
+const CLICKUP_API_KEY = '_1GNNPQ7J2RN4UF5TIU5LAB2RJIYW5T2P';
+const REPLY_API_KEY = '
 
 const WORKFLOW_DIR = path.join(__dirname, '..', 'workflows');
 

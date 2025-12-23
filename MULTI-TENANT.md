@@ -215,8 +215,8 @@ To migrate the existing Qtalo workflows to this architecture:
 ./deploy.sh onboard qtalo "Qtalo"
 
 # 2. When prompted, enter the existing API keys:
-#    - Reply.io: vljMqVejupnbkvRNAJLPbjCM
-#    - ClickUp: pk_111957980_1GNNPQ7J2RN4UF5TIU5LAB2RJIYW5T2P
+#    - Reply.io: 
+#    - ClickUp: _1GNNPQ7J2RN4UF5TIU5LAB2RJIYW5T2P
 
 # 3. The script will create:
 #    - Secret: n8n/clients/qtalo
