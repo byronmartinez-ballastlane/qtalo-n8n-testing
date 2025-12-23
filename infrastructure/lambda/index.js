@@ -167,11 +167,12 @@ async function getClientByTaskId(taskId) {
   const result = await docClient.send(new ScanCommand(params));
   
   if (!result.Items || result.Items.length === 0) {
-    return response(404, { error: 'No client found for task_id', task_id: taskId });
+    // Return 200 with exists: false for easy checking in n8n
+    return response(200, { exists: false, task_id: taskId });
   }
   
-  // Return first match (should only be one)
-  return response(200, result.Items[0]);
+  // Return first match with exists: true
+  return response(200, { exists: true, client: result.Items[0] });
 }
 
 async function onboardClient(body) {

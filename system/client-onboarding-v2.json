@@ -26,8 +26,7 @@
         "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/by-task/{{ $json.body.task_id }}",
         "authentication": "none",
         "options": {}
-      },
-      "continueOnFail": true
+      }
     },
     {
       "id": "check-dedupe",
@@ -40,9 +39,9 @@
           "options": { "caseSensitive": false },
           "conditions": [
             {
-              "leftValue": "={{ $json.error }}",
-              "rightValue": "",
-              "operator": { "type": "object", "operation": "exists" }
+              "leftValue": "={{ $json.exists }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "notEquals" }
             }
           ]
         }
@@ -56,7 +55,7 @@
       "position": [700, 500],
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"success\": true, \"message\": \"Client already onboarded for this ClickUp task\", \"task_id\": \"{{ $('Webhook: Onboard Client').item.json.body.task_id }}\", \"existing_client_id\": \"{{ $json.client_id }}\" }",
+        "responseBody": "={ \"success\": true, \"message\": \"Client already onboarded for this ClickUp task\", \"task_id\": \"{{ $('Webhook: Onboard Client').item.json.body.task_id }}\", \"existing_client_id\": \"{{ $json.client.client_id }}\" }",
         "options": {}
       }
     },
