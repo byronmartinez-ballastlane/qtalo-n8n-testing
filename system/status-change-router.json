@@ -16,7 +16,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on specific statuses\nconst triggerStatuses = ['reply', 'domain purchase', 'domain_purchase'];\nconst shouldTrigger = triggerStatuses.some(s => newStatus.includes(s));\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];"
+        "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];"
       },
       "id": "parse-webhook",
       "name": "Parse Webhook",
@@ -55,7 +55,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
         "authentication": "none",
         "options": {}
       },
@@ -63,17 +63,28 @@
       "name": "Get Client by Task ID",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [900, 300]
+      "position": [900, 300],
+      "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status\n  }\n}];"
+        "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];"
       },
       "id": "find-client",
       "name": "Find Client by Task ID",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];"
+      },
+      "id": "check-last-execution",
+      "name": "Check Status Progression",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300]
     },
     {
       "parameters": {
@@ -101,34 +112,12 @@
       "name": "Client Found?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1340, 300]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{$env.CLICKUP_API_KEY}}"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "get-task-details",
-      "name": "Get Task Details",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [1560, 300]
+      "position": [1400, 300]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -145,165 +134,46 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"comment_text\": \"🚀 **Automation Started**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n**Triggered by:** Status change to {{ $('Parse Webhook').first().json.new_status }}\\n\\nPhase 1, 2, and 3 will now run automatically.\"\n}",
+        "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
         "options": {}
       },
       "id": "post-start-comment",
       "name": "Post Start Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1780, 300],
+      "position": [1620, 300],
       "continueOnFail": true
     },
     {
       "parameters": {
-        "jsCode": "// Prepare data for phase workflows\nconst task = $input.first().json;\nconst clientData = $('Find Client by Task ID').first().json;\nconst customFields = task.custom_fields || [];\n\n// Helper to get custom field value\nfunction getFieldValue(fields, ...fieldNames) {\n  for (const fieldName of fieldNames) {\n    const field = fields.find(f => \n      f.name?.toLowerCase().replace(/[^a-z0-9]/g, '') === fieldName.toLowerCase().replace(/[^a-z0-9]/g, '')\n    );\n    if (field?.value) return field.value;\n  }\n  return '';\n}\n\nfunction parseJsonField(value) {\n  if (!value) return null;\n  if (typeof value === 'object') return value;\n  try { return JSON.parse(value); } catch { return null; }\n}\n\nconst taskName = task.name || clientData.client_name;\n\nconst config = {\n  task_id: task.id,\n  task_name: taskName,\n  client_id: clientData.client_id,\n  client_name: clientData.client_name,\n  workflow_ids: clientData.workflow_ids,\n  company_name: getFieldValue(customFields, 'company_name', 'Company Name') || taskName,\n  company_url: getFieldValue(customFields, 'company_url', 'Company URL') || '',\n  reply_workspace_id: getFieldValue(customFields, 'reply_workspace_id', 'Reply Workspace ID') || 'default',\n  force_overwrite: getFieldValue(customFields, 'force_overwrite') === true,\n  sending_limits: parseJsonField(getFieldValue(customFields, 'sending_limits')) || { daily: 50, hourly: 10 },\n  attachments: task.attachments || []\n};\n\n// Find CSV attachment\nconst csvAttachment = config.attachments.find(a => \n  a.title?.toLowerCase().includes('mailbox') || \n  a.title?.toLowerCase().includes('roster') ||\n  (a.title?.toLowerCase().endsWith('.csv') && !a.title?.toLowerCase().includes('phase'))\n);\nconfig.csv_attachment_url = csvAttachment?.url || '';\n\nconsole.log(`✅ Config prepared for client: ${config.client_name}`);\nconsole.log(`📋 Workflow IDs:`, config.workflow_ids);\n\nreturn [{ json: config }];"
-      },
-      "id": "prepare-config",
-      "name": "Prepare Configuration",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2000, 300]
-    },
-    {
-      "parameters": {
-        "method": "GET",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $json.client_id }}",
-        "authentication": "none",
-        "options": {}
-      },
-      "id": "get-client-credentials",
-      "name": "Get Client Credentials",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [2220, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Merge credentials with config\nconst config = $('Prepare Configuration').first().json;\nconst credResponse = $input.first().json;\nconst credentials = credResponse.credentials || {};\n\nconst fullConfig = {\n  ...config,\n  reply_api_key: credentials.reply_api_key || '',\n  clickup_api_key: credentials.clickup_api_key || $env.CLICKUP_API_KEY\n};\n\nconsole.log(`✅ Credentials merged for: ${config.client_name}`);\n\nreturn [{ json: fullConfig }];"
-      },
-      "id": "merge-credentials",
-      "name": "Merge Credentials",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2440, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Check if CSV exists and download if needed\nconst config = $input.first().json;\n\nif (!config.csv_attachment_url) {\n  console.log('⚠️ No CSV attachment found');\n  return [{ json: { ...config, mailbox_csv_content: '', skip_csv: true } }];\n}\n\ntry {\n  const csvContent = await this.helpers.request({\n    method: 'GET',\n    uri: config.csv_attachment_url\n  });\n  console.log(`✅ Downloaded CSV, length: ${csvContent.length}`);\n  return [{ json: { ...config, mailbox_csv_content: csvContent, data: csvContent, skip_csv: false } }];\n} catch (error) {\n  console.error('❌ Failed to download CSV:', error.message);\n  return [{ json: { ...config, mailbox_csv_content: '', skip_csv: true } }];\n}"
-      },
-      "id": "download-csv",
-      "name": "Download CSV if Exists",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2660, 300]
-    },
-    {
-      "parameters": {
-        "workflowId": "={{ $json.workflow_ids['phase1-import-hygiene'] || '' }}",
+        "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
         "fields": {
           "values": [
             {
-              "name": "inputData",
-              "stringValue": "={{ JSON.stringify($json) }}"
+              "name": "task_id",
+              "stringValue": "={{ $('Check Status Progression').first().json.task_id }}"
             }
           ]
         },
         "options": {
-          "pass": {
-            "passMode": "all"
-          }
+          "waitForSubWorkflow": false
         }
       },
-      "id": "execute-phase1",
-      "name": "Execute Phase 1",
+      "id": "trigger-main-orchestrator",
+      "name": "Trigger Main Orchestrator",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [2880, 300],
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{$env.CLICKUP_API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\n  \"comment_text\": \"✅ **Phase 1: Import & Hygiene Complete**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\"\n}",
-        "options": {}
-      },
-      "id": "comment-phase1",
-      "name": "Post Phase 1 Comment",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [3100, 300],
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "workflowId": "={{ $('Download CSV if Exists').first().json.workflow_ids['phase2-signatures'] || '' }}",
-        "fields": {
-          "values": [
-            {
-              "name": "inputData",
-              "stringValue": "={{ JSON.stringify($('Download CSV if Exists').first().json) }}"
-            }
-          ]
-        },
-        "options": {
-          "pass": {
-            "passMode": "all"
-          }
-        }
-      },
-      "id": "execute-phase2",
-      "name": "Execute Phase 2",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1,
-      "position": [3320, 300],
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
-        "workflowId": "={{ $('Download CSV if Exists').first().json.workflow_ids['phase3-standardize'] || '' }}",
-        "options": {
-          "pass": {
-            "passMode": "all"
-          }
-        }
-      },
-      "id": "execute-phase3",
-      "name": "Execute Phase 3",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1,
-      "position": [3540, 300],
-      "continueOnFail": true
+      "position": [1840, 300],
+      "continueOnFail": false
     },
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "={{$env.CLICKUP_API_KEY}}"
-            },
             {
               "name": "Content-Type",
               "value": "application/json"
@@ -312,14 +182,14 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{ \"status\": \"complete reply\" }",
+        "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
         "options": {}
       },
-      "id": "update-status",
-      "name": "Update Status Complete",
+      "id": "update-last-execution",
+      "name": "Update Processed Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [3760, 300],
+      "position": [2060, 300],
       "continueOnFail": true
     },
     {
@@ -342,14 +212,15 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"comment_text\": \"🎉 **All Phases Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\n✅ Phase 1: Import & Hygiene\\n✅ Phase 2: Signatures & Opt-Outs\\n✅ Phase 3: Standardize Workspace\\n\\nReply.io workspace is fully configured.\"\n}",
+        "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
         "options": {}
       },
       "id": "post-complete-comment",
       "name": "Post Complete Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [3980, 300]
+      "position": [2280, 300],
+      "continueOnFail": true
     },
     {
       "parameters": {},
@@ -385,45 +256,24 @@
       "main": [[{ "node": "Find Client by Task ID", "type": "main", "index": 0 }]]
     },
     "Find Client by Task ID": {
+      "main": [[{ "node": "Check Status Progression", "type": "main", "index": 0 }]]
+    },
+    "Check Status Progression": {
       "main": [[{ "node": "Client Found?", "type": "main", "index": 0 }]]
     },
     "Client Found?": {
       "main": [
-        [{ "node": "Get Task Details", "type": "main", "index": 0 }],
+        [{ "node": "Post Start Comment", "type": "main", "index": 0 }],
         [{ "node": "No Client Found", "type": "main", "index": 0 }]
       ]
     },
-    "Get Task Details": {
-      "main": [[{ "node": "Post Start Comment", "type": "main", "index": 0 }]]
-    },
     "Post Start Comment": {
-      "main": [[{ "node": "Prepare Configuration", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Trigger Main Orchestrator", "type": "main", "index": 0 }]]
     },
-    "Prepare Configuration": {
-      "main": [[{ "node": "Get Client Credentials", "type": "main", "index": 0 }]]
+    "Trigger Main Orchestrator": {
+      "main": [[{ "node": "Update Processed Status", "type": "main", "index": 0 }]]
     },
-    "Get Client Credentials": {
-      "main": [[{ "node": "Merge Credentials", "type": "main", "index": 0 }]]
-    },
-    "Merge Credentials": {
-      "main": [[{ "node": "Download CSV if Exists", "type": "main", "index": 0 }]]
-    },
-    "Download CSV if Exists": {
-      "main": [[{ "node": "Execute Phase 1", "type": "main", "index": 0 }]]
-    },
-    "Execute Phase 1": {
-      "main": [[{ "node": "Post Phase 1 Comment", "type": "main", "index": 0 }]]
-    },
-    "Post Phase 1 Comment": {
-      "main": [[{ "node": "Execute Phase 2", "type": "main", "index": 0 }]]
-    },
-    "Execute Phase 2": {
-      "main": [[{ "node": "Execute Phase 3", "type": "main", "index": 0 }]]
-    },
-    "Execute Phase 3": {
-      "main": [[{ "node": "Update Status Complete", "type": "main", "index": 0 }]]
-    },
-    "Update Status Complete": {
+    "Update Processed Status": {
       "main": [[{ "node": "Post Complete Comment", "type": "main", "index": 0 }]]
     }
   },

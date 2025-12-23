@@ -3,6 +3,16 @@
   "nodes": [
     {
       "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "execute-workflow-trigger",
+      "name": "Execute Workflow Trigger",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [60, 300]
+    },
+    {
+      "parameters": {
         "httpMethod": "POST",
         "path": "{{CLIENT_NAME}}-clickup-reply-setup",
         "options": {}
@@ -43,7 +53,7 @@
       "typeVersion": 2,
       "position": [560, 300],
       "parameters": {
-        "jsCode": "// Check for 403/401 auth errors from ClickUp API\nconst response = $input.first().json;\nconst webhookData = $('ClickUp Webhook').first().json;\nconst taskId = webhookData.task_id || webhookData.body?.task_id || 'unknown';\n\n// Check for auth errors\nif (response.err || response.error || response.statusCode === 401 || response.statusCode === 403) {\n  const errorMsg = response.err || response.error || response.message || 'Authentication failed';\n  const statusCode = response.statusCode || 'unknown';\n  \n  console.error(`❌ ClickUp Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp (may fail if auth is the issue)\n  try {\n    await this.helpers.request({\n      method: 'POST',\n      uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n      headers: {\n        'Authorization': 'HARDCODED_CLICKUP_API_KEY',\n        'Content-Type': 'application/json'\n      },\n      body: {\n        comment_text: `🚨 **Authentication Error - ClickUp API**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the ClickUp API key is valid\\n2. Check if the API key has access to this task\\n3. Update credentials in the n8n workflow`\n      },\n      json: true\n    });\n  } catch (commentError) {\n    console.error('Failed to post error comment:', commentError.message);\n  }\n  \n  throw new Error(`ClickUp API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n\n// Auth OK - pass through\nreturn [{ json: response }];"
+        "jsCode": "// Check for 403/401 auth errors from ClickUp API\nconst response = $input.first().json;\n\n// Get task_id from Execute Workflow Trigger input (passed from Status Change Router)\nconst triggerData = $(\"Execute Workflow Trigger\").first().json;\nconst taskId = triggerData.task_id || response.id || \"unknown\";\n\n// Check for auth errors\nif (response.err || response.error || response.statusCode === 401 || response.statusCode === 403) {\n  const errorMsg = response.err || response.error || response.message || \"Authentication failed\";\n  const statusCode = response.statusCode || \"unknown\";\n  \n  console.error(`❌ ClickUp Auth Error (${statusCode}): ${errorMsg}`);\n  \n  throw new Error(`ClickUp API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n\n// Auth OK - pass through\nreturn [{ json: { ...response, task_id: taskId } }];"
       }
     },
     {
@@ -310,6 +320,9 @@
     }
   ],
   "connections": {
+    "Execute Workflow Trigger": {
+      "main": [[{ "node": "Get Task Details", "type": "main", "index": 0 }]]
+    },
     "ClickUp Webhook": {
       "main": [[{ "node": "Get Task Details", "type": "main", "index": 0 }]]
     },

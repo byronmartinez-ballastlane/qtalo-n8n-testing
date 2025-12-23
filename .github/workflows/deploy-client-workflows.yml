@@ -19,7 +19,7 @@ on:
 
 env:
   N8N_API_URL: https://qtalospace.app.n8n.cloud/api/v1
-  AWS_API_URL: https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod
+  AWS_API_URL: https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod
 
 jobs:
   deploy:
