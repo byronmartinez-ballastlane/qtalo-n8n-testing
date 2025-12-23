@@ -40,9 +40,9 @@
           "options": { "caseSensitive": false },
           "conditions": [
             {
-              "leftValue": "={{ $json.client_id }}",
+              "leftValue": "={{ $json.error }}",
               "rightValue": "",
-              "operator": { "type": "string", "operation": "notExists" }
+              "operator": { "type": "object", "operation": "exists" }
             }
           ]
         }
