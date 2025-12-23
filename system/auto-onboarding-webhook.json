@@ -131,7 +131,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients",
+        "url": "https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {

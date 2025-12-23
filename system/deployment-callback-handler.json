@@ -55,7 +55,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -80,7 +80,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {

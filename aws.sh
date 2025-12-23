@@ -10,7 +10,7 @@ export AWS_PROFILE="bla"
 export AWS_DEFAULT_REGION="us-east-1"
 FUNCTION_NAME="replyio-signature-automation"
 REGION="us-east-1"
-RUNTIME="nodejs20.x"
+RUNTIME="nodejs22.x"
 
 # Get Chromium Layer ARN for the region
 get_chromium_layer() {

@@ -51,8 +51,8 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "dynamodb:Query"
         ]
         Resource = [
-          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}",
-          "arn:aws:dynamodb:${var.aws_region}:*:table/${var.dynamodb_table_name}/index/*"
+          aws_dynamodb_table.clients.arn,
+          "${aws_dynamodb_table.clients.arn}/index/*"
         ]
       },
       {
@@ -71,6 +71,46 @@ resource "aws_iam_role_policy" "lambda_policy" {
 }
 
 # ============================================================
+# S3 Bucket for Lambda Deployment
+# ============================================================
+
+resource "aws_s3_bucket" "lambda_deployments" {
+  bucket = "${var.project_name}-lambda-deployments-${var.environment}"
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "lambda_deployments" {
+  bucket = aws_s3_bucket.lambda_deployments.id
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "lambda_deployments" {
+  bucket = aws_s3_bucket.lambda_deployments.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "lambda_deployments" {
+  bucket = aws_s3_bucket.lambda_deployments.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# ============================================================
 # Lambda Function
 # ============================================================
 
@@ -80,19 +120,33 @@ data "archive_file" "lambda_zip" {
   output_path = "${path.module}/lambda-package.zip"
 }
 
+resource "aws_s3_object" "lambda_package" {
+  bucket = aws_s3_bucket.lambda_deployments.id
+  key    = "client-manager/${var.environment}/lambda-${data.archive_file.lambda_zip.output_base64sha256}.zip"
+  source = data.archive_file.lambda_zip.output_path
+  etag   = filemd5(data.archive_file.lambda_zip.output_path)
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
 resource "aws_lambda_function" "client_manager" {
-  filename         = data.archive_file.lambda_zip.output_path
-  function_name    = "${var.project_name}-client-manager-${var.environment}"
-  role             = aws_iam_role.lambda_role.arn
-  handler          = "index.handler"
+  function_name = "${var.project_name}-client-manager-${var.environment}"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "index.handler"
+  runtime       = "nodejs22.x"
+  timeout       = 30
+  memory_size   = 256
+
+  s3_bucket        = aws_s3_bucket.lambda_deployments.id
+  s3_key           = aws_s3_object.lambda_package.key
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-  runtime          = "nodejs18.x"
-  timeout          = 30
-  memory_size      = 256
 
   environment {
     variables = {
-      DYNAMODB_TABLE = var.dynamodb_table_name
+      DYNAMODB_TABLE = aws_dynamodb_table.clients.name
     }
   }
 
@@ -100,6 +154,8 @@ resource "aws_lambda_function" "client_manager" {
     Project     = var.project_name
     Environment = var.environment
   }
+
+  depends_on = [aws_s3_object.lambda_package]
 }
 
 resource "aws_cloudwatch_log_group" "lambda_logs" {

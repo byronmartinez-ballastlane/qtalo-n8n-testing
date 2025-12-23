@@ -6,11 +6,22 @@
 set -e
 
 # Configuration
-N8N_URL="http://localhost:5678"
-API_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwNDUxNjVmYS0wODdmLTQ5MjYtYWQyMS0yYTVhNzk5ZDkwYjYiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwiaWF0IjoxNzYzNjQ5OTAxfQ.AxTq5Fecen__gSZ8qN72LCiD5Byr0-b6WzvpAQBo9hQ"
+N8N_URL="${N8N_URL:-https://qtalospace.app.n8n.cloud}"
+API_KEY="${N8N_API_KEY:-}"
 NUM_EXECUTIONS=${1:-4}
 OUTPUT_DIR="execution-logs"
 COMBINED_FILE="combined-executions.json"
+
+# Load from .env if API_KEY not set
+if [ -z "$API_KEY" ] && [ -f ".env" ]; then
+  source .env
+  API_KEY="$N8N_API_KEY"
+fi
+
+if [ -z "$API_KEY" ]; then
+  echo "❌ N8N_API_KEY not set. Please set it or create a .env file"
+  exit 1
+fi
 
 echo "============================================================"
 echo "n8n Execution Log Fetcher"

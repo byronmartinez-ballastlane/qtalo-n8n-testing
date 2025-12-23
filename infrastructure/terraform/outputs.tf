@@ -31,14 +31,25 @@ output "lambda_role_arn" {
 output "endpoints" {
   description = "API endpoints for n8n workflows"
   value = {
-    health      = "${aws_api_gateway_stage.api.invoke_url}/health"
-    list_clients = "${aws_api_gateway_stage.api.invoke_url}/clients"
-    get_client  = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
-    create_client = "${aws_api_gateway_stage.api.invoke_url}/clients"
-    update_client = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
-    delete_client = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    health          = "${aws_api_gateway_stage.api.invoke_url}/health"
+    list_clients    = "${aws_api_gateway_stage.api.invoke_url}/clients"
+    get_client      = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    get_by_task     = "${aws_api_gateway_stage.api.invoke_url}/clients/by-task/{taskId}"
+    create_client   = "${aws_api_gateway_stage.api.invoke_url}/clients"
+    update_client   = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    delete_client   = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
     get_credentials = "${aws_api_gateway_stage.api.invoke_url}/credentials/{clientId}"
     update_workflows = "${aws_api_gateway_stage.api.invoke_url}/workflows"
-    sync_clients = "${aws_api_gateway_stage.api.invoke_url}/sync"
+    sync_clients    = "${aws_api_gateway_stage.api.invoke_url}/sync"
   }
+}
+
+output "s3_bucket_name" {
+  description = "S3 bucket for Lambda deployments"
+  value       = aws_s3_bucket.lambda_deployments.id
+}
+
+output "s3_bucket_arn" {
+  description = "ARN of the S3 bucket for Lambda deployments"
+  value       = aws_s3_bucket.lambda_deployments.arn
 }

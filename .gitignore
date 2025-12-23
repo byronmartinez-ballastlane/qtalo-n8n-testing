@@ -43,4 +43,7 @@ clients/
 backup/
 
 # Lambda deploy artifacts
-replyio-lambda-deploy/
+replyio-lambda-deploy/.credentials/
+
+# Execution logs (may contain sensitive data)
+execution-logs/

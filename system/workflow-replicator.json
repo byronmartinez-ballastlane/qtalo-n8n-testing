@@ -18,7 +18,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.body.client_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.body.client_id }}",
         "options": {}
       },
       "id": "get-client",
@@ -78,7 +78,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $json.client_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $json.client_id }}",
         "options": {}
       },
       "id": "get-credentials",
@@ -219,7 +219,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/workflows",
+        "url": "https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/workflows",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"client_id\": \"{{ $json.client_id }}\",\n  \"workflow_ids\": {\n    \"{{ $json.template_name }}\": \"{{ $json.workflow_id }}\"\n  },\n  \"credential_ids\": {{ JSON.stringify($json.credential_ids) }}\n}",

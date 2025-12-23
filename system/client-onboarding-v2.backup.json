@@ -16,164 +16,15 @@
       }
     },
     {
-      "id": "check-task-in-db",
-      "name": "Check Task in DynamoDB",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [350, 300],
-      "parameters": {
-        "method": "GET",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/by-task/{{ $json.body.task_id }}",
-        "authentication": "none",
-        "options": {}
-      },
-      "continueOnFail": true
-    },
-    {
-      "id": "check-dedupe",
-      "name": "Task Already Onboarded?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [500, 300],
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": false },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.client_id }}",
-              "rightValue": "",
-              "operator": { "type": "string", "operation": "notExists" }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "dedupe-response",
-      "name": "Already Onboarded Response",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [700, 500],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={ \"success\": true, \"message\": \"Client already onboarded for this ClickUp task\", \"task_id\": \"{{ $('Webhook: Onboard Client').item.json.body.task_id }}\", \"existing_client_id\": \"{{ $json.client_id }}\" }",
-        "options": {}
-      }
-    },
-    {
-      "id": "check-status",
-      "name": "Check If Onboarding Status",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [700, 300],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.body.history_items?.[0]?.after?.status || $json.body.status?.status || '' }}",
-              "rightValue": "onboarding",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "fetch-task",
-      "name": "Fetch ClickUp Task",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [920, 300],
-      "parameters": {
-        "method": "GET",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $json.body.task_id }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "options": {}
-      },
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "KQ4DCkxv3kBoRgK1",
-          "name": "System ClickUp API"
-        }
-      }
-    },
-    {
       "id": "extract-client-info",
       "name": "Extract Client Info",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1140, 300],
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [460, 300],
       "parameters": {
-        "jsCode": "// Extract custom fields from ClickUp task\nconst task = $input.first().json;\nconst customFields = task.custom_fields || [];\n\n// Field IDs from ClickUp\nconst FIELD_IDS = {\n  client_id: '8a92110c-90e6-43bc-9573-ff01a39c39d5',\n  reply_api_key: '7be3268d-ced7-4895-9026-9ea72437a8af',\n  reply_user: 'e7cddd23-549d-46e7-a46f-ef97949f0919',\n  reply_password: '59e1624b-318c-491d-a4cd-75332fdaad0e',\n  clickup_api_key: '4c99c4ad-cc34-4731-9cb2-b53120218c82',\n  company_name: '752f908a-9338-40b8-9737-9405267da718'\n};\n\n// UUID v4 generator (crypto not available in n8n)\nfunction generateUUID() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\n// Extract values\nconst getFieldValue = (id) => {\n  const field = customFields.find(f => f.id === id);\n  return field?.value || '';\n};\n\nconst companyName = getFieldValue(FIELD_IDS.company_name);\nconst replyApiKey = getFieldValue(FIELD_IDS.reply_api_key);\nconst replyUser = getFieldValue(FIELD_IDS.reply_user);\nconst replyPassword = getFieldValue(FIELD_IDS.reply_password);\nconst clickupApiKey = getFieldValue(FIELD_IDS.clickup_api_key);\n\n// Validate required fields (client_id is NO LONGER required from ClickUp)\nif (!replyApiKey || !replyUser || !replyPassword || !clickupApiKey) {\n  throw new Error(`Missing required fields. Found: reply_api_key=${!!replyApiKey}, reply_user=${!!replyUser}, reply_password=${!!replyPassword}, clickup_api_key=${!!clickupApiKey}`);\n}\n\n// GENERATE UUID for client_id - DynamoDB is now the source of truth\nconst clientId = generateUUID();\n\nconsole.log(`🆔 Generated client_id: ${clientId}`);\n\nreturn {\n  json: {\n    client_id: clientId,\n    client_id_field_id: FIELD_IDS.client_id,\n    client_name: companyName || task.name || clientId,\n    reply_api_key: replyApiKey,\n    reply_io_user: replyUser,\n    reply_io_password: replyPassword,\n    clickup_api_key: clickupApiKey,\n    clickup_task_id: task.id,\n    github_owner: 'byronmartinez-ballastlane',\n    github_repo: 'qtalo-n8n-testing',\n    templates_path: 'templates'\n  }\n};"
-      }
-    },
-    {
-      "id": "check-if-exists",
-      "name": "Check If Client Exists",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [1120, 300],
-      "parameters": {
-        "method": "GET",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
-        "authentication": "none",
-        "options": {}
-      },
-      "continueOnFail": true
-    },
-    {
-      "id": "validate-client-status",
-      "name": "Validate Client Status",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1340, 300],
-      "parameters": {
-        "jsCode": "// Check if client already exists and is active\nconst clientInfo = $('Extract Client Info').first().json;\nconst existingClient = $input.first().json;\n\n// If client exists and is active, skip onboarding\nif (existingClient.client_id && existingClient.status === 'active') {\n  console.log(`⏭️ Client ${clientInfo.client_id} already exists with status 'active' - skipping onboarding`);\n  return [{\n    json: {\n      ...clientInfo,\n      skip: true,\n      reason: 'Client already onboarded',\n      existing_client: existingClient\n    }\n  }];\n}\n\n// Client doesn't exist or is not active, proceed with onboarding\nconsole.log(`✅ Proceeding with onboarding for ${clientInfo.client_id}`);\nreturn [{\n  json: {\n    ...clientInfo,\n    skip: false\n  }\n}];"
-      }
-    },
-    {
-      "id": "should-onboard",
-      "name": "Should Onboard?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1560, 300],
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
-            "leftValue": "",
-            "typeValidation": "loose"
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $json.skip }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "already-onboarded-response",
-      "name": "Build Already Onboarded Response",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1780, 500],
-      "parameters": {
-        "jsCode": "const data = $input.first().json;\n\nreturn {\n  json: {\n    success: true,\n    message: 'Client already onboarded',\n    client_id: data.client_id,\n    client_name: data.client_name,\n    existing_client: data.existing_client\n  }\n};"
+        "mode": "raw",
+        "options": {},
+        "jsonOutput": "={\n  \"client_id\": \"{{ $json.body.client_id.toLowerCase().replace(/[^a-z0-9-]/g, '-') }}\",\n  \"client_name\": \"{{ $json.body.client_name || $json.body.client_id }}\",\n  \"reply_api_key\": \"{{ $json.body.reply_api_key }}\",\n  \"reply_io_user\": \"{{ $json.body.reply_io_user || '' }}\",\n  \"reply_io_password\": \"{{ $json.body.reply_io_password || '' }}\",\n  \"clickup_api_key\": \"{{ $json.body.clickup_api_key || '' }}\",\n  \"clickup_task_id\": \"{{ $json.body.clickup_task_id || '' }}\",\n  \"github_owner\": \"byronmartinez-ballastlane\",\n  \"github_repo\": \"qtalo-n8n-testing\",\n  \"templates_path\": \"templates\"\n}"
       }
     },
     {
@@ -181,7 +32,7 @@
       "name": "Create Client in AWS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1780, 300],
+      "position": [680, 300],
       "parameters": {
         "method": "PUT",
         "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
@@ -203,7 +54,7 @@
       "name": "Store Credentials in AWS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2000, 300],
+      "position": [900, 300],
       "parameters": {
         "method": "PUT",
         "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $('Extract Client Info').item.json.client_id }}",
@@ -221,35 +72,11 @@
       }
     },
     {
-      "id": "update-clickup-client-id",
-      "name": "Update ClickUp Client ID",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [2000, 420],
-      "continueOnFail": true,
-      "parameters": {
-        "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Extract Client Info').first().json.clickup_task_id }}/field/{{ $('Extract Client Info').first().json.client_id_field_id }}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Authorization", "value": "={{ $('Extract Client Info').first().json.clickup_api_key }}" },
-            { "name": "Content-Type", "value": "application/json" }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ value: $('Extract Client Info').first().json.client_id }) }}",
-        "options": {}
-      }
-    },
-    {
       "id": "create-clickup-credential",
       "name": "Create ClickUp Credential",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2220, 200],
+      "position": [1010, 200],
       "parameters": {
         "method": "POST",
         "url": "https://qtalospace.app.n8n.cloud/api/v1/credentials",
@@ -278,7 +105,7 @@
       "name": "Transfer ClickUp Credential",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2220, 400],
+      "position": [1010, 400],
       "parameters": {
         "method": "PUT",
         "url": "=https://qtalospace.app.n8n.cloud/api/v1/credentials/{{ $('Create ClickUp Credential').item.json.id }}/transfer",
@@ -308,7 +135,7 @@
       "name": "Create Reply Credential",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2220, 500],
+      "position": [1010, 500],
       "parameters": {
         "method": "POST",
         "url": "https://qtalospace.app.n8n.cloud/api/v1/credentials",
@@ -524,7 +351,7 @@
       "typeVersion": 2,
       "position": [2660, 300],
       "parameters": {
-        "jsCode": "// Collect all created workflow IDs from the Create Workflow node\nconst createItems = $('Create Workflow in n8n').all();\nconst decodeItems = $('Decode & Inject Client Values').all();\nconst extractInfo = $('Extract Client Info').first().json;\n\nconst workflowIds = {};\nconst clientId = decodeItems[0]?.json.client_id;\nconst clientName = decodeItems[0]?.json.client_name;\n\ncreateItems.forEach((item, index) => {\n  const templateKey = decodeItems[index]?.json.template_key;\n  const workflowId = item.json.id;\n  \n  if (templateKey && workflowId) {\n    workflowIds[templateKey] = workflowId;\n  }\n});\n\nreturn [{\n  json: {\n    client_id: clientId,\n    client_name: clientName,\n    workflow_ids: workflowIds,\n    clickup_task_id: extractInfo.clickup_task_id\n  }\n}];"
+        "jsCode": "// Collect all created workflow IDs from the Create Workflow node\nconst createItems = $('Create Workflow in n8n').all();\nconst decodeItems = $('Decode & Inject Client Values').all();\n\nconst workflowIds = {};\nconst clientId = decodeItems[0]?.json.client_id;\nconst clientName = decodeItems[0]?.json.client_name;\n\ncreateItems.forEach((item, index) => {\n  const templateKey = decodeItems[index]?.json.template_key;\n  const workflowId = item.json.id;\n  \n  if (templateKey && workflowId) {\n    workflowIds[templateKey] = workflowId;\n  }\n});\n\nreturn [{\n  json: {\n    client_id: clientId,\n    client_name: clientName,\n    workflow_ids: workflowIds\n  }\n}];"
       }
     },
     {
@@ -569,7 +396,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ status: 'active', workflow_ids: $('Collect Workflow IDs').item.json.workflow_ids || {}, clickup_task_id: $('Collect Workflow IDs').item.json.clickup_task_id, deployed_at: new Date().toISOString() }) }}",
+        "jsonBody": "={{ JSON.stringify({ status: 'active', workflow_ids: $('Collect Workflow IDs').item.json.workflow_ids || {}, deployed_at: new Date().toISOString() }) }}",
         "options": {}
       }
     },
@@ -600,46 +427,13 @@
   ],
   "connections": {
     "Webhook: Onboard Client": {
-      "main": [[{ "node": "Check Task in DynamoDB", "type": "main", "index": 0 }]]
-    },
-    "Check Task in DynamoDB": {
-      "main": [[{ "node": "Task Already Onboarded?", "type": "main", "index": 0 }]]
-    },
-    "Task Already Onboarded?": {
-      "main": [
-        [{ "node": "Check If Onboarding Status", "type": "main", "index": 0 }],
-        [{ "node": "Already Onboarded Response", "type": "main", "index": 0 }]
-      ]
-    },
-    "Check If Onboarding Status": {
-      "main": [[{ "node": "Fetch ClickUp Task", "type": "main", "index": 0 }]]
-    },
-    "Fetch ClickUp Task": {
       "main": [[{ "node": "Extract Client Info", "type": "main", "index": 0 }]]
     },
     "Extract Client Info": {
-      "main": [[{ "node": "Check If Client Exists", "type": "main", "index": 0 }]]
-    },
-    "Check If Client Exists": {
-      "main": [[{ "node": "Validate Client Status", "type": "main", "index": 0 }]]
-    },
-    "Validate Client Status": {
-      "main": [[{ "node": "Should Onboard?", "type": "main", "index": 0 }]]
-    },
-    "Should Onboard?": {
-      "main": [
-        [{ "node": "Create Client in AWS", "type": "main", "index": 0 }],
-        [{ "node": "Build Already Onboarded Response", "type": "main", "index": 0 }]
-      ]
-    },
-    "Build Already Onboarded Response": {
-      "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Create Client in AWS", "type": "main", "index": 0 }]]
     },
     "Create Client in AWS": {
-      "main": [[
-        { "node": "Store Credentials in AWS", "type": "main", "index": 0 },
-        { "node": "Update ClickUp Client ID", "type": "main", "index": 0 }
-      ]]
+      "main": [[{ "node": "Store Credentials in AWS", "type": "main", "index": 0 }]]
     },
     "Store Credentials in AWS": {
       "main": [[{ "node": "Create ClickUp Credential", "type": "main", "index": 0 }]]

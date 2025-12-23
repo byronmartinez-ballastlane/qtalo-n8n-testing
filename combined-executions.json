@@ -1,0 +1,3399 @@
+{
+  "metadata": {
+    "fetched_at": "2025-12-23T13:58:37Z",
+    "total_executions": 5,
+    "n8n_url": "https://qtalospace.app.n8n.cloud"
+  },
+  "executions": [
+  {
+    "id": "1161",
+    "finished": true,
+    "mode": "webhook",
+    "retryOf": null,
+    "retrySuccessId": null,
+    "status": "success",
+    "createdAt": "2025-12-23T12:15:49.141Z",
+    "startedAt": "2025-12-23T12:15:49.481Z",
+    "stoppedAt": "2025-12-23T12:15:49.771Z",
+    "deletedAt": null,
+    "workflowId": "aHhgGkrbTKvywIJk",
+    "waitTill": null,
+    "data": {
+      "startData": {},
+      "resultData": {
+        "runData": {
+          "ClickUp Status Change Webhook": [
+            {
+              "startTime": 1766492149765,
+              "executionIndex": 0,
+              "source": [],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "headers": {
+                          "host": "qtalospace.app.n8n.cloud",
+                          "user-agent": "axios/0.24.0",
+                          "content-length": "664",
+                          "accept": "application/json, text/plain, */*",
+                          "accept-encoding": "gzip, br",
+                          "b3": "694a87f400000000029e3b88c0286654-744a7a8c27346aaa-0-029e3b88c0286654",
+                          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+                          "cf-connecting-ip": "18.221.30.114",
+                          "cf-ew-via": "15",
+                          "cf-ipcountry": "US",
+                          "cf-ray": "9b27c95a34b1eaed-ORD",
+                          "cf-visitor": "{\"scheme\":\"https\"}",
+                          "cf-worker": "n8n.cloud",
+                          "content-type": "application/json",
+                          "traceparent": "00-694a87f400000000029e3b88c0286654-744a7a8c27346aaa-00",
+                          "tracestate": "dd=t.tid:694a87f400000000;t.dm:-3;s:-1;p:744a7a8c27346aaa",
+                          "x-b3-parentspanid": "029e3b88c0286654",
+                          "x-b3-sampled": "0",
+                          "x-b3-spanid": "744a7a8c27346aaa",
+                          "x-b3-traceid": "694a87f400000000029e3b88c0286654",
+                          "x-datadog-parent-id": "8379644799047985834",
+                          "x-datadog-sampling-priority": "-1",
+                          "x-datadog-tags": "_dd.p.tid=694a87f400000000",
+                          "x-datadog-trace-id": "188653692921603668",
+                          "x-forwarded-for": "18.221.30.114, 172.71.255.116",
+                          "x-forwarded-host": "qtalospace.app.n8n.cloud",
+                          "x-forwarded-port": "443",
+                          "x-forwarded-proto": "https",
+                          "x-forwarded-server": "traefik-prod-users-gwc-38-6f9f659dd9-jgqnt",
+                          "x-is-trusted": "yes",
+                          "x-real-ip": "18.221.30.114",
+                          "x-signature": "928ddc94ae8cb77436d1086175be2eb0705ecc97646e3bc676407742be0cf084"
+                        },
+                        "params": {},
+                        "query": {},
+                        "body": {
+                          "event": "taskStatusUpdated",
+                          "history_items": [
+                            {
+                              "id": "4877069702461641631",
+                              "type": 1,
+                              "date": "1766492145995",
+                              "field": "status",
+                              "parent_id": "901323682948",
+                              "data": {
+                                "status_type": "open"
+                              },
+                              "source": null,
+                              "user": {
+                                "id": 82274397,
+                                "username": "Devin Mahoney",
+                                "email": "devin@qtalo.com",
+                                "color": "#595d66",
+                                "initials": "DM",
+                                "profilePicture": "https://attachments.clickup.com/profilePictures/82274397_DRn.jpg",
+                                "role": 2,
+                                "role_subtype": 0
+                              },
+                              "before": {
+                                "status": null,
+                                "color": "#000000",
+                                "type": "removed",
+                                "orderindex": -1
+                              },
+                              "after": {
+                                "status": "to do",
+                                "color": "#87909e",
+                                "orderindex": 0,
+                                "type": "open"
+                              }
+                            }
+                          ],
+                          "task_id": "86ae36c3y",
+                          "team_id": "90131816000",
+                          "webhook_id": "8ac478da-a3af-4993-854c-abc020d8cb4b"
+                        },
+                        "webhookUrl": "https://qtalospace.app.n8n.cloud/webhook/clickup-status-change",
+                        "executionMode": "production"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Parse Webhook": [
+            {
+              "startTime": 1766492149765,
+              "executionIndex": 1,
+              "source": [
+                {
+                  "previousNode": "ClickUp Status Change Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 5,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Should Process?": [
+            {
+              "startTime": 1766492149770,
+              "executionIndex": 2,
+              "source": [
+                {
+                  "previousNode": "Parse Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 1,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [],
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Skipped": [
+            {
+              "startTime": 1766492149771,
+              "executionIndex": 3,
+              "source": [
+                {
+                  "previousNode": "Should Process?",
+                  "previousNodeOutput": 1
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "lastNodeExecuted": "Skipped"
+      },
+      "executionData": {
+        "contextData": {},
+        "nodeExecutionStack": [],
+        "waitingExecution": {}
+      }
+    },
+    "workflowData": {
+      "id": "aHhgGkrbTKvywIJk",
+      "name": "System - Status Change Router",
+      "active": true,
+      "isArchived": false,
+      "createdAt": "2025-12-20T14:21:09.354Z",
+      "updatedAt": "2025-12-23T03:56:46.437Z",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": false,
+            "httpMethod": "POST",
+            "path": "clickup-status-change",
+            "authentication": "none",
+            "responseMode": "onReceived",
+            "responseCode": 200,
+            "contentTypeNotice": "",
+            "options": {}
+          },
+          "id": "webhook-trigger",
+          "name": "ClickUp Status Change Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1.1,
+          "position": [
+            240,
+            300
+          ],
+          "webhookId": "clickup-status-change"
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];",
+            "notice": ""
+          },
+          "id": "parse-webhook",
+          "name": "Parse Webhook",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            460,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "should-process",
+          "name": "Should Process?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            680,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "GET",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "get-client-by-task",
+          "name": "Get Client by Task ID",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            900,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];",
+            "notice": ""
+          },
+          "id": "find-client",
+          "name": "Find Client by Task ID",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1120,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];",
+            "notice": ""
+          },
+          "id": "check-last-execution",
+          "name": "Check Status Progression",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1250,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "client-found",
+          "name": "Client Found?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1400,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-start-comment",
+          "name": "Post Start Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            1620,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "operation": "call_workflow",
+            "outdatedVersionWarning": "",
+            "source": "database",
+            "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
+            "executeWorkflowNotice": "",
+            "mode": "once",
+            "options": {
+              "waitForSubWorkflow": false
+            }
+          },
+          "id": "trigger-main-orchestrator",
+          "name": "Trigger Main Orchestrator",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            1840,
+            300
+          ],
+          "continueOnFail": false
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "PUT",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "update-last-execution",
+          "name": "Update Processed Status",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2060,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-complete-comment",
+          "name": "Post Complete Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2280,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {},
+          "id": "no-op-skip",
+          "name": "Skipped",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            900,
+            500
+          ]
+        },
+        {
+          "parameters": {},
+          "id": "no-op-no-client",
+          "name": "No Client Found",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            1560,
+            500
+          ]
+        }
+      ],
+      "connections": {
+        "ClickUp Status Change Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Webhook",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Webhook": {
+          "main": [
+            [
+              {
+                "node": "Should Process?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Should Process?": {
+          "main": [
+            [
+              {
+                "node": "Get Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Skipped",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Find Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Find Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Check Status Progression",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Status Progression": {
+          "main": [
+            [
+              {
+                "node": "Client Found?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Client Found?": {
+          "main": [
+            [
+              {
+                "node": "Post Start Comment",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No Client Found",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post Start Comment": {
+          "main": [
+            [
+              {
+                "node": "Trigger Main Orchestrator",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Trigger Main Orchestrator": {
+          "main": [
+            [
+              {
+                "node": "Update Processed Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Processed Status": {
+          "main": [
+            [
+              {
+                "node": "Post Complete Comment",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false
+      },
+      "staticData": {},
+      "pinData": null
+    },
+    "customData": {}
+  },
+  {
+    "id": "1160",
+    "finished": true,
+    "mode": "webhook",
+    "retryOf": null,
+    "retrySuccessId": null,
+    "status": "success",
+    "createdAt": "2025-12-23T12:15:49.079Z",
+    "startedAt": "2025-12-23T12:15:49.412Z",
+    "stoppedAt": "2025-12-23T12:15:49.727Z",
+    "deletedAt": null,
+    "workflowId": "aHhgGkrbTKvywIJk",
+    "waitTill": null,
+    "data": {
+      "startData": {},
+      "resultData": {
+        "runData": {
+          "ClickUp Status Change Webhook": [
+            {
+              "startTime": 1766492149722,
+              "executionIndex": 0,
+              "source": [],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "headers": {
+                          "host": "qtalospace.app.n8n.cloud",
+                          "user-agent": "axios/0.24.0",
+                          "content-length": "664",
+                          "accept": "application/json, text/plain, */*",
+                          "accept-encoding": "gzip, br",
+                          "b3": "694a87f40000000023760a8d1c725a40-1cc81306bd467b70-0-23760a8d1c725a40",
+                          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+                          "cf-connecting-ip": "3.23.71.80",
+                          "cf-ew-via": "15",
+                          "cf-ipcountry": "US",
+                          "cf-ray": "9b27c95a16ecf92b-ORD",
+                          "cf-visitor": "{\"scheme\":\"https\"}",
+                          "cf-worker": "n8n.cloud",
+                          "content-type": "application/json",
+                          "traceparent": "00-694a87f40000000023760a8d1c725a40-1cc81306bd467b70-00",
+                          "tracestate": "dd=t.tid:694a87f400000000;t.dm:-3;s:-1;p:1cc81306bd467b70",
+                          "x-b3-parentspanid": "23760a8d1c725a40",
+                          "x-b3-sampled": "0",
+                          "x-b3-spanid": "1cc81306bd467b70",
+                          "x-b3-traceid": "694a87f40000000023760a8d1c725a40",
+                          "x-datadog-parent-id": "2073928548070357872",
+                          "x-datadog-sampling-priority": "-1",
+                          "x-datadog-tags": "_dd.p.tid=694a87f400000000",
+                          "x-datadog-trace-id": "2555241439763257920",
+                          "x-forwarded-for": "3.23.71.80, 172.69.7.114",
+                          "x-forwarded-host": "qtalospace.app.n8n.cloud",
+                          "x-forwarded-port": "443",
+                          "x-forwarded-proto": "https",
+                          "x-forwarded-server": "traefik-prod-users-gwc-38-6f9f659dd9-vzwn5",
+                          "x-is-trusted": "yes",
+                          "x-real-ip": "3.23.71.80",
+                          "x-signature": "dfac263c53eb45f14cf2244ad52fa99d28438d5febb384228c40e28228a2c1f2"
+                        },
+                        "params": {},
+                        "query": {},
+                        "body": {
+                          "event": "taskStatusUpdated",
+                          "history_items": [
+                            {
+                              "id": "4877069699240416148",
+                              "type": 1,
+                              "date": "1766492145995",
+                              "field": "status",
+                              "parent_id": "901323682948",
+                              "data": {
+                                "status_type": "open"
+                              },
+                              "source": null,
+                              "user": {
+                                "id": 82274397,
+                                "username": "Devin Mahoney",
+                                "email": "devin@qtalo.com",
+                                "color": "#595d66",
+                                "initials": "DM",
+                                "profilePicture": "https://attachments.clickup.com/profilePictures/82274397_DRn.jpg",
+                                "role": 2,
+                                "role_subtype": 0
+                              },
+                              "before": {
+                                "status": null,
+                                "color": "#000000",
+                                "type": "removed",
+                                "orderindex": -1
+                              },
+                              "after": {
+                                "status": "to do",
+                                "color": "#87909e",
+                                "orderindex": 0,
+                                "type": "open"
+                              }
+                            }
+                          ],
+                          "task_id": "86ae36c3v",
+                          "team_id": "90131816000",
+                          "webhook_id": "8ac478da-a3af-4993-854c-abc020d8cb4b"
+                        },
+                        "webhookUrl": "https://qtalospace.app.n8n.cloud/webhook/clickup-status-change",
+                        "executionMode": "production"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Parse Webhook": [
+            {
+              "startTime": 1766492149722,
+              "executionIndex": 1,
+              "source": [
+                {
+                  "previousNode": "ClickUp Status Change Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 4,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Should Process?": [
+            {
+              "startTime": 1766492149726,
+              "executionIndex": 2,
+              "source": [
+                {
+                  "previousNode": "Parse Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 1,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [],
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Skipped": [
+            {
+              "startTime": 1766492149727,
+              "executionIndex": 3,
+              "source": [
+                {
+                  "previousNode": "Should Process?",
+                  "previousNodeOutput": 1
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "lastNodeExecuted": "Skipped"
+      },
+      "executionData": {
+        "contextData": {},
+        "nodeExecutionStack": [],
+        "waitingExecution": {}
+      }
+    },
+    "workflowData": {
+      "id": "aHhgGkrbTKvywIJk",
+      "name": "System - Status Change Router",
+      "active": true,
+      "isArchived": false,
+      "createdAt": "2025-12-20T14:21:09.354Z",
+      "updatedAt": "2025-12-23T03:56:46.437Z",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": false,
+            "httpMethod": "POST",
+            "path": "clickup-status-change",
+            "authentication": "none",
+            "responseMode": "onReceived",
+            "responseCode": 200,
+            "contentTypeNotice": "",
+            "options": {}
+          },
+          "id": "webhook-trigger",
+          "name": "ClickUp Status Change Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1.1,
+          "position": [
+            240,
+            300
+          ],
+          "webhookId": "clickup-status-change"
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];",
+            "notice": ""
+          },
+          "id": "parse-webhook",
+          "name": "Parse Webhook",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            460,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "should-process",
+          "name": "Should Process?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            680,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "GET",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "get-client-by-task",
+          "name": "Get Client by Task ID",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            900,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];",
+            "notice": ""
+          },
+          "id": "find-client",
+          "name": "Find Client by Task ID",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1120,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];",
+            "notice": ""
+          },
+          "id": "check-last-execution",
+          "name": "Check Status Progression",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1250,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "client-found",
+          "name": "Client Found?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1400,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-start-comment",
+          "name": "Post Start Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            1620,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "operation": "call_workflow",
+            "outdatedVersionWarning": "",
+            "source": "database",
+            "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
+            "executeWorkflowNotice": "",
+            "mode": "once",
+            "options": {
+              "waitForSubWorkflow": false
+            }
+          },
+          "id": "trigger-main-orchestrator",
+          "name": "Trigger Main Orchestrator",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            1840,
+            300
+          ],
+          "continueOnFail": false
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "PUT",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "update-last-execution",
+          "name": "Update Processed Status",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2060,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-complete-comment",
+          "name": "Post Complete Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2280,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {},
+          "id": "no-op-skip",
+          "name": "Skipped",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            900,
+            500
+          ]
+        },
+        {
+          "parameters": {},
+          "id": "no-op-no-client",
+          "name": "No Client Found",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            1560,
+            500
+          ]
+        }
+      ],
+      "connections": {
+        "ClickUp Status Change Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Webhook",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Webhook": {
+          "main": [
+            [
+              {
+                "node": "Should Process?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Should Process?": {
+          "main": [
+            [
+              {
+                "node": "Get Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Skipped",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Find Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Find Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Check Status Progression",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Status Progression": {
+          "main": [
+            [
+              {
+                "node": "Client Found?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Client Found?": {
+          "main": [
+            [
+              {
+                "node": "Post Start Comment",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No Client Found",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post Start Comment": {
+          "main": [
+            [
+              {
+                "node": "Trigger Main Orchestrator",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Trigger Main Orchestrator": {
+          "main": [
+            [
+              {
+                "node": "Update Processed Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Processed Status": {
+          "main": [
+            [
+              {
+                "node": "Post Complete Comment",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false
+      },
+      "staticData": {},
+      "pinData": null
+    },
+    "customData": {}
+  },
+  {
+    "id": "1159",
+    "finished": true,
+    "mode": "webhook",
+    "retryOf": null,
+    "retrySuccessId": null,
+    "status": "success",
+    "createdAt": "2025-12-23T12:15:49.023Z",
+    "startedAt": "2025-12-23T12:15:49.333Z",
+    "stoppedAt": "2025-12-23T12:15:49.666Z",
+    "deletedAt": null,
+    "workflowId": "aHhgGkrbTKvywIJk",
+    "waitTill": null,
+    "data": {
+      "startData": {},
+      "resultData": {
+        "runData": {
+          "ClickUp Status Change Webhook": [
+            {
+              "startTime": 1766492149636,
+              "executionIndex": 0,
+              "source": [],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "headers": {
+                          "host": "qtalospace.app.n8n.cloud",
+                          "user-agent": "axios/0.24.0",
+                          "content-length": "664",
+                          "accept": "application/json, text/plain, */*",
+                          "accept-encoding": "gzip, br",
+                          "b3": "694a87f400000000481f93451da6a8d7-3fd46c14a95447ef-0-481f93451da6a8d7",
+                          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+                          "cf-connecting-ip": "3.23.71.80",
+                          "cf-ew-via": "15",
+                          "cf-ipcountry": "US",
+                          "cf-ray": "9b27c959f3e52276-ORD",
+                          "cf-visitor": "{\"scheme\":\"https\"}",
+                          "cf-worker": "n8n.cloud",
+                          "content-type": "application/json",
+                          "traceparent": "00-694a87f400000000481f93451da6a8d7-3fd46c14a95447ef-00",
+                          "tracestate": "dd=t.tid:694a87f400000000;t.dm:-3;s:-1;p:3fd46c14a95447ef",
+                          "x-b3-parentspanid": "481f93451da6a8d7",
+                          "x-b3-sampled": "0",
+                          "x-b3-spanid": "3fd46c14a95447ef",
+                          "x-b3-traceid": "694a87f400000000481f93451da6a8d7",
+                          "x-datadog-parent-id": "4599419955448137711",
+                          "x-datadog-sampling-priority": "-1",
+                          "x-datadog-tags": "_dd.p.tid=694a87f400000000",
+                          "x-datadog-trace-id": "5197034420068329687",
+                          "x-forwarded-for": "3.23.71.80, 172.71.255.116",
+                          "x-forwarded-host": "qtalospace.app.n8n.cloud",
+                          "x-forwarded-port": "443",
+                          "x-forwarded-proto": "https",
+                          "x-forwarded-server": "traefik-prod-users-gwc-38-6f9f659dd9-jgqnt",
+                          "x-is-trusted": "yes",
+                          "x-real-ip": "3.23.71.80",
+                          "x-signature": "313299323850430ca242f9733eafb52abaa7039a947239b25fc59dcf6be54b75"
+                        },
+                        "params": {},
+                        "query": {},
+                        "body": {
+                          "event": "taskStatusUpdated",
+                          "history_items": [
+                            {
+                              "id": "4877069690348491639",
+                              "type": 1,
+                              "date": "1766492145996",
+                              "field": "status",
+                              "parent_id": "901323682948",
+                              "data": {
+                                "status_type": "open"
+                              },
+                              "source": null,
+                              "user": {
+                                "id": 82274397,
+                                "username": "Devin Mahoney",
+                                "email": "devin@qtalo.com",
+                                "color": "#595d66",
+                                "initials": "DM",
+                                "profilePicture": "https://attachments.clickup.com/profilePictures/82274397_DRn.jpg",
+                                "role": 2,
+                                "role_subtype": 0
+                              },
+                              "before": {
+                                "status": null,
+                                "color": "#000000",
+                                "type": "removed",
+                                "orderindex": -1
+                              },
+                              "after": {
+                                "status": "to do",
+                                "color": "#87909e",
+                                "orderindex": 0,
+                                "type": "open"
+                              }
+                            }
+                          ],
+                          "task_id": "86ae36c3j",
+                          "team_id": "90131816000",
+                          "webhook_id": "8ac478da-a3af-4993-854c-abc020d8cb4b"
+                        },
+                        "webhookUrl": "https://qtalospace.app.n8n.cloud/webhook/clickup-status-change",
+                        "executionMode": "production"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Parse Webhook": [
+            {
+              "startTime": 1766492149637,
+              "executionIndex": 1,
+              "source": [
+                {
+                  "previousNode": "ClickUp Status Change Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 28,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Should Process?": [
+            {
+              "startTime": 1766492149665,
+              "executionIndex": 2,
+              "source": [
+                {
+                  "previousNode": "Parse Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 1,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [],
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Skipped": [
+            {
+              "startTime": 1766492149666,
+              "executionIndex": 3,
+              "source": [
+                {
+                  "previousNode": "Should Process?",
+                  "previousNodeOutput": 1
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "lastNodeExecuted": "Skipped"
+      },
+      "executionData": {
+        "contextData": {},
+        "nodeExecutionStack": [],
+        "waitingExecution": {}
+      }
+    },
+    "workflowData": {
+      "id": "aHhgGkrbTKvywIJk",
+      "name": "System - Status Change Router",
+      "active": true,
+      "isArchived": false,
+      "createdAt": "2025-12-20T14:21:09.354Z",
+      "updatedAt": "2025-12-23T03:56:46.437Z",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": false,
+            "httpMethod": "POST",
+            "path": "clickup-status-change",
+            "authentication": "none",
+            "responseMode": "onReceived",
+            "responseCode": 200,
+            "contentTypeNotice": "",
+            "options": {}
+          },
+          "id": "webhook-trigger",
+          "name": "ClickUp Status Change Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1.1,
+          "position": [
+            240,
+            300
+          ],
+          "webhookId": "clickup-status-change"
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];",
+            "notice": ""
+          },
+          "id": "parse-webhook",
+          "name": "Parse Webhook",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            460,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "should-process",
+          "name": "Should Process?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            680,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "GET",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "get-client-by-task",
+          "name": "Get Client by Task ID",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            900,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];",
+            "notice": ""
+          },
+          "id": "find-client",
+          "name": "Find Client by Task ID",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1120,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];",
+            "notice": ""
+          },
+          "id": "check-last-execution",
+          "name": "Check Status Progression",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1250,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "client-found",
+          "name": "Client Found?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1400,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-start-comment",
+          "name": "Post Start Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            1620,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "operation": "call_workflow",
+            "outdatedVersionWarning": "",
+            "source": "database",
+            "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
+            "executeWorkflowNotice": "",
+            "mode": "once",
+            "options": {
+              "waitForSubWorkflow": false
+            }
+          },
+          "id": "trigger-main-orchestrator",
+          "name": "Trigger Main Orchestrator",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            1840,
+            300
+          ],
+          "continueOnFail": false
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "PUT",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "update-last-execution",
+          "name": "Update Processed Status",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2060,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-complete-comment",
+          "name": "Post Complete Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2280,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {},
+          "id": "no-op-skip",
+          "name": "Skipped",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            900,
+            500
+          ]
+        },
+        {
+          "parameters": {},
+          "id": "no-op-no-client",
+          "name": "No Client Found",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            1560,
+            500
+          ]
+        }
+      ],
+      "connections": {
+        "ClickUp Status Change Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Webhook",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Webhook": {
+          "main": [
+            [
+              {
+                "node": "Should Process?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Should Process?": {
+          "main": [
+            [
+              {
+                "node": "Get Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Skipped",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Find Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Find Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Check Status Progression",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Status Progression": {
+          "main": [
+            [
+              {
+                "node": "Client Found?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Client Found?": {
+          "main": [
+            [
+              {
+                "node": "Post Start Comment",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No Client Found",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post Start Comment": {
+          "main": [
+            [
+              {
+                "node": "Trigger Main Orchestrator",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Trigger Main Orchestrator": {
+          "main": [
+            [
+              {
+                "node": "Update Processed Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Processed Status": {
+          "main": [
+            [
+              {
+                "node": "Post Complete Comment",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false
+      },
+      "staticData": {},
+      "pinData": null
+    },
+    "customData": {}
+  },
+  {
+    "id": "1158",
+    "finished": true,
+    "mode": "webhook",
+    "retryOf": null,
+    "retrySuccessId": null,
+    "status": "success",
+    "createdAt": "2025-12-23T12:15:48.989Z",
+    "startedAt": "2025-12-23T12:15:49.242Z",
+    "stoppedAt": "2025-12-23T12:15:49.664Z",
+    "deletedAt": null,
+    "workflowId": "aHhgGkrbTKvywIJk",
+    "waitTill": null,
+    "data": {
+      "startData": {},
+      "resultData": {
+        "runData": {
+          "ClickUp Status Change Webhook": [
+            {
+              "startTime": 1766492149503,
+              "executionIndex": 0,
+              "source": [],
+              "hints": [],
+              "executionTime": 1,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "headers": {
+                          "host": "qtalospace.app.n8n.cloud",
+                          "user-agent": "axios/0.24.0",
+                          "content-length": "664",
+                          "accept": "application/json, text/plain, */*",
+                          "accept-encoding": "gzip, br",
+                          "b3": "694a87f4000000007803faa30a885e5c-1e9dda9bd49c9b30-0-7803faa30a885e5c",
+                          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+                          "cf-connecting-ip": "18.221.30.114",
+                          "cf-ew-via": "15",
+                          "cf-ipcountry": "US",
+                          "cf-ray": "9b27c959e290616f-ORD",
+                          "cf-visitor": "{\"scheme\":\"https\"}",
+                          "cf-worker": "n8n.cloud",
+                          "content-type": "application/json",
+                          "traceparent": "00-694a87f4000000007803faa30a885e5c-1e9dda9bd49c9b30-00",
+                          "tracestate": "dd=t.tid:694a87f400000000;t.dm:-3;s:-1;p:1e9dda9bd49c9b30",
+                          "x-b3-parentspanid": "7803faa30a885e5c",
+                          "x-b3-sampled": "0",
+                          "x-b3-spanid": "1e9dda9bd49c9b30",
+                          "x-b3-traceid": "694a87f4000000007803faa30a885e5c",
+                          "x-datadog-parent-id": "2206159755303230256",
+                          "x-datadog-sampling-priority": "-1",
+                          "x-datadog-tags": "_dd.p.tid=694a87f400000000",
+                          "x-datadog-trace-id": "8648031287644806748",
+                          "x-forwarded-for": "18.221.30.114, 172.69.7.114",
+                          "x-forwarded-host": "qtalospace.app.n8n.cloud",
+                          "x-forwarded-port": "443",
+                          "x-forwarded-proto": "https",
+                          "x-forwarded-server": "traefik-prod-users-gwc-38-6f9f659dd9-vzwn5",
+                          "x-is-trusted": "yes",
+                          "x-real-ip": "18.221.30.114",
+                          "x-signature": "8277be91aee11ab758776661cdb7c9d4f1afe19cb275da6e6fd61a86421d9f1e"
+                        },
+                        "params": {},
+                        "query": {},
+                        "body": {
+                          "event": "taskStatusUpdated",
+                          "history_items": [
+                            {
+                              "id": "4877069703971591074",
+                              "type": 1,
+                              "date": "1766492145995",
+                              "field": "status",
+                              "parent_id": "901323682948",
+                              "data": {
+                                "status_type": "open"
+                              },
+                              "source": null,
+                              "user": {
+                                "id": 82274397,
+                                "username": "Devin Mahoney",
+                                "email": "devin@qtalo.com",
+                                "color": "#595d66",
+                                "initials": "DM",
+                                "profilePicture": "https://attachments.clickup.com/profilePictures/82274397_DRn.jpg",
+                                "role": 2,
+                                "role_subtype": 0
+                              },
+                              "before": {
+                                "status": null,
+                                "color": "#000000",
+                                "type": "removed",
+                                "orderindex": -1
+                              },
+                              "after": {
+                                "status": "to do",
+                                "color": "#87909e",
+                                "orderindex": 0,
+                                "type": "open"
+                              }
+                            }
+                          ],
+                          "task_id": "86ae36c3z",
+                          "team_id": "90131816000",
+                          "webhook_id": "8ac478da-a3af-4993-854c-abc020d8cb4b"
+                        },
+                        "webhookUrl": "https://qtalospace.app.n8n.cloud/webhook/clickup-status-change",
+                        "executionMode": "production"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Parse Webhook": [
+            {
+              "startTime": 1766492149504,
+              "executionIndex": 1,
+              "source": [
+                {
+                  "previousNode": "ClickUp Status Change Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 159,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Should Process?": [
+            {
+              "startTime": 1766492149663,
+              "executionIndex": 2,
+              "source": [
+                {
+                  "previousNode": "Parse Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 1,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [],
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Skipped": [
+            {
+              "startTime": 1766492149664,
+              "executionIndex": 3,
+              "source": [
+                {
+                  "previousNode": "Should Process?",
+                  "previousNodeOutput": 1
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "lastNodeExecuted": "Skipped"
+      },
+      "executionData": {
+        "contextData": {},
+        "nodeExecutionStack": [],
+        "waitingExecution": {}
+      }
+    },
+    "workflowData": {
+      "id": "aHhgGkrbTKvywIJk",
+      "name": "System - Status Change Router",
+      "active": true,
+      "isArchived": false,
+      "createdAt": "2025-12-20T14:21:09.354Z",
+      "updatedAt": "2025-12-23T03:56:46.437Z",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": false,
+            "httpMethod": "POST",
+            "path": "clickup-status-change",
+            "authentication": "none",
+            "responseMode": "onReceived",
+            "responseCode": 200,
+            "contentTypeNotice": "",
+            "options": {}
+          },
+          "id": "webhook-trigger",
+          "name": "ClickUp Status Change Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1.1,
+          "position": [
+            240,
+            300
+          ],
+          "webhookId": "clickup-status-change"
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];",
+            "notice": ""
+          },
+          "id": "parse-webhook",
+          "name": "Parse Webhook",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            460,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "should-process",
+          "name": "Should Process?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            680,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "GET",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "get-client-by-task",
+          "name": "Get Client by Task ID",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            900,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];",
+            "notice": ""
+          },
+          "id": "find-client",
+          "name": "Find Client by Task ID",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1120,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];",
+            "notice": ""
+          },
+          "id": "check-last-execution",
+          "name": "Check Status Progression",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1250,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "client-found",
+          "name": "Client Found?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1400,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-start-comment",
+          "name": "Post Start Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            1620,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "operation": "call_workflow",
+            "outdatedVersionWarning": "",
+            "source": "database",
+            "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
+            "executeWorkflowNotice": "",
+            "mode": "once",
+            "options": {
+              "waitForSubWorkflow": false
+            }
+          },
+          "id": "trigger-main-orchestrator",
+          "name": "Trigger Main Orchestrator",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            1840,
+            300
+          ],
+          "continueOnFail": false
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "PUT",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "update-last-execution",
+          "name": "Update Processed Status",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2060,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-complete-comment",
+          "name": "Post Complete Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2280,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {},
+          "id": "no-op-skip",
+          "name": "Skipped",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            900,
+            500
+          ]
+        },
+        {
+          "parameters": {},
+          "id": "no-op-no-client",
+          "name": "No Client Found",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            1560,
+            500
+          ]
+        }
+      ],
+      "connections": {
+        "ClickUp Status Change Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Webhook",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Webhook": {
+          "main": [
+            [
+              {
+                "node": "Should Process?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Should Process?": {
+          "main": [
+            [
+              {
+                "node": "Get Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Skipped",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Find Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Find Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Check Status Progression",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Status Progression": {
+          "main": [
+            [
+              {
+                "node": "Client Found?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Client Found?": {
+          "main": [
+            [
+              {
+                "node": "Post Start Comment",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No Client Found",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post Start Comment": {
+          "main": [
+            [
+              {
+                "node": "Trigger Main Orchestrator",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Trigger Main Orchestrator": {
+          "main": [
+            [
+              {
+                "node": "Update Processed Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Processed Status": {
+          "main": [
+            [
+              {
+                "node": "Post Complete Comment",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false
+      },
+      "staticData": {},
+      "pinData": null
+    },
+    "customData": {}
+  },
+  {
+    "id": "1157",
+    "finished": true,
+    "mode": "webhook",
+    "retryOf": null,
+    "retrySuccessId": null,
+    "status": "success",
+    "createdAt": "2025-12-23T12:15:48.847Z",
+    "startedAt": "2025-12-23T12:15:49.144Z",
+    "stoppedAt": "2025-12-23T12:15:49.664Z",
+    "deletedAt": null,
+    "workflowId": "aHhgGkrbTKvywIJk",
+    "waitTill": null,
+    "data": {
+      "startData": {},
+      "resultData": {
+        "runData": {
+          "ClickUp Status Change Webhook": [
+            {
+              "startTime": 1766492149440,
+              "executionIndex": 0,
+              "source": [],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "headers": {
+                          "host": "qtalospace.app.n8n.cloud",
+                          "user-agent": "axios/0.24.0",
+                          "content-length": "664",
+                          "accept": "application/json, text/plain, */*",
+                          "accept-encoding": "gzip, br",
+                          "b3": "694a87f400000000598bcc004eaa6004-01cd68b3c46a2297-0-598bcc004eaa6004",
+                          "cdn-loop": "cloudflare; loops=1; subreqs=1",
+                          "cf-connecting-ip": "3.21.141.156",
+                          "cf-ew-via": "15",
+                          "cf-ipcountry": "US",
+                          "cf-ray": "9b27c959b362e894-ORD",
+                          "cf-visitor": "{\"scheme\":\"https\"}",
+                          "cf-worker": "n8n.cloud",
+                          "content-type": "application/json",
+                          "traceparent": "00-694a87f400000000598bcc004eaa6004-01cd68b3c46a2297-00",
+                          "tracestate": "dd=t.tid:694a87f400000000;t.dm:-3;s:-1;p:01cd68b3c46a2297",
+                          "x-b3-parentspanid": "598bcc004eaa6004",
+                          "x-b3-sampled": "0",
+                          "x-b3-spanid": "01cd68b3c46a2297",
+                          "x-b3-traceid": "694a87f400000000598bcc004eaa6004",
+                          "x-datadog-parent-id": "129875085567337111",
+                          "x-datadog-sampling-priority": "-1",
+                          "x-datadog-tags": "_dd.p.tid=694a87f400000000",
+                          "x-datadog-trace-id": "6452475192830222340",
+                          "x-forwarded-for": "3.21.141.156, 172.69.7.114",
+                          "x-forwarded-host": "qtalospace.app.n8n.cloud",
+                          "x-forwarded-port": "443",
+                          "x-forwarded-proto": "https",
+                          "x-forwarded-server": "traefik-prod-users-gwc-38-6f9f659dd9-vzwn5",
+                          "x-is-trusted": "yes",
+                          "x-real-ip": "3.21.141.156",
+                          "x-signature": "f0b13b2337fb6dd6d745a6637fe2e82920c8725ebb4ffda47cba9bd55e24863e"
+                        },
+                        "params": {},
+                        "query": {},
+                        "body": {
+                          "event": "taskStatusUpdated",
+                          "history_items": [
+                            {
+                              "id": "4877069701169795992",
+                              "type": 1,
+                              "date": "1766492145995",
+                              "field": "status",
+                              "parent_id": "901323682948",
+                              "data": {
+                                "status_type": "open"
+                              },
+                              "source": null,
+                              "user": {
+                                "id": 82274397,
+                                "username": "Devin Mahoney",
+                                "email": "devin@qtalo.com",
+                                "color": "#595d66",
+                                "initials": "DM",
+                                "profilePicture": "https://attachments.clickup.com/profilePictures/82274397_DRn.jpg",
+                                "role": 2,
+                                "role_subtype": 0
+                              },
+                              "before": {
+                                "status": null,
+                                "color": "#000000",
+                                "type": "removed",
+                                "orderindex": -1
+                              },
+                              "after": {
+                                "status": "to do",
+                                "color": "#87909e",
+                                "orderindex": 0,
+                                "type": "open"
+                              }
+                            }
+                          ],
+                          "task_id": "86ae36c3x",
+                          "team_id": "90131816000",
+                          "webhook_id": "8ac478da-a3af-4993-854c-abc020d8cb4b"
+                        },
+                        "webhookUrl": "https://qtalospace.app.n8n.cloud/webhook/clickup-status-change",
+                        "executionMode": "production"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Parse Webhook": [
+            {
+              "startTime": 1766492149441,
+              "executionIndex": 1,
+              "source": [
+                {
+                  "previousNode": "ClickUp Status Change Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 222,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Should Process?": [
+            {
+              "startTime": 1766492149663,
+              "executionIndex": 2,
+              "source": [
+                {
+                  "previousNode": "Parse Webhook"
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [],
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ],
+          "Skipped": [
+            {
+              "startTime": 1766492149664,
+              "executionIndex": 3,
+              "source": [
+                {
+                  "previousNode": "Should Process?",
+                  "previousNodeOutput": 1
+                }
+              ],
+              "hints": [],
+              "executionTime": 0,
+              "executionStatus": "success",
+              "data": {
+                "main": [
+                  [
+                    {
+                      "json": {
+                        "skip": true,
+                        "reason": "Status 'to do' not in trigger list"
+                      },
+                      "pairedItem": {
+                        "item": 0
+                      }
+                    }
+                  ]
+                ]
+              }
+            }
+          ]
+        },
+        "lastNodeExecuted": "Skipped"
+      },
+      "executionData": {
+        "contextData": {},
+        "nodeExecutionStack": [],
+        "waitingExecution": {}
+      }
+    },
+    "workflowData": {
+      "id": "aHhgGkrbTKvywIJk",
+      "name": "System - Status Change Router",
+      "active": true,
+      "isArchived": false,
+      "createdAt": "2025-12-20T14:21:09.354Z",
+      "updatedAt": "2025-12-23T03:56:46.437Z",
+      "nodes": [
+        {
+          "parameters": {
+            "multipleMethods": false,
+            "httpMethod": "POST",
+            "path": "clickup-status-change",
+            "authentication": "none",
+            "responseMode": "onReceived",
+            "responseCode": 200,
+            "contentTypeNotice": "",
+            "options": {}
+          },
+          "id": "webhook-trigger",
+          "name": "ClickUp Status Change Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 1.1,
+          "position": [
+            240,
+            300
+          ],
+          "webhookId": "clickup-status-change"
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\n// Extract task ID\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\n// Check for status change in history_items\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\n// Only trigger on REPLY status\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];",
+            "notice": ""
+          },
+          "id": "parse-webhook",
+          "name": "Parse Webhook",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            460,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "should-process",
+          "name": "Should Process?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            680,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "GET",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $json.task_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": false,
+            "sendBody": false,
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "get-client-by-task",
+          "name": "Get Client by Task ID",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            900,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\n// Handle 404 or empty response\nif (response.error || !response.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconsole.log(`✅ Found client: ${response.client_name} (${response.client_id})`);\nconsole.log(`📋 Workflow IDs:`, response.workflow_ids);\n\n// Validate workflow_ids exist\nif (!response.workflow_ids || Object.keys(response.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: response.client_id,\n    client_name: response.client_name,\n    task_id: taskId,\n    workflow_ids: response.workflow_ids || {},\n    clickup_space_id: response.clickup_space_id,\n    status: response.status,\n    last_processed_status: response.last_processed_status\n  }\n}];",
+            "notice": ""
+          },
+          "id": "find-client",
+          "name": "Find Client by Task ID",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1120,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "mode": "runOnceForAllItems",
+            "language": "javaScript",
+            "jsCode": "// Smart status tracking - prevent backwards changes and duplicate processing\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\n\n// If we've already processed this exact status, skip\nif (lastProcessedStatus === newStatus) {\n  console.log(`⏭️ Already processed status '${newStatus}' - skipping`);\n  return [{ json: { ...client, skip: true, reason: `Status '${newStatus}' already processed` } }];\n}\n\n// Define status order (workflow progression)\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst oldIndex = STATUS_ORDER.indexOf(oldStatus);\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\n// Check if moving backwards (to a previous status in the workflow)\nif (lastProcessedStatus && newIndex < lastIndex) {\n  // Moving backwards - only allow if returning to 'reply' (in case user moved forward by mistake)\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\n// Moving forward or first time - allow execution\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];",
+            "notice": ""
+          },
+          "id": "check-last-execution",
+          "name": "Check Status Progression",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [
+            1250,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "conditions": {
+              "options": {
+                "caseSensitive": false,
+                "leftValue": "",
+                "typeValidation": "loose"
+              },
+              "conditions": [
+                {
+                  "leftValue": "={{ $json.skip }}",
+                  "rightValue": false,
+                  "operator": {
+                    "type": "boolean",
+                    "operation": "equals"
+                  }
+                }
+              ],
+              "combinator": "and"
+            },
+            "options": {}
+          },
+          "id": "client-found",
+          "name": "Client Found?",
+          "type": "n8n-nodes-base.if",
+          "typeVersion": 2,
+          "position": [
+            1400,
+            300
+          ]
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-start-comment",
+          "name": "Post Start Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            1620,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "operation": "call_workflow",
+            "outdatedVersionWarning": "",
+            "source": "database",
+            "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
+            "executeWorkflowNotice": "",
+            "mode": "once",
+            "options": {
+              "waitForSubWorkflow": false
+            }
+          },
+          "id": "trigger-main-orchestrator",
+          "name": "Trigger Main Orchestrator",
+          "type": "n8n-nodes-base.executeWorkflow",
+          "typeVersion": 1,
+          "position": [
+            1840,
+            300
+          ],
+          "continueOnFail": false
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "PUT",
+            "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={{ JSON.stringify({ last_processed_status: $('Parse Webhook').first().json.new_status, last_execution_timestamp: new Date().toISOString() }) }}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "update-last-execution",
+          "name": "Update Processed Status",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2060,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {
+            "preBuiltAgentsCalloutHttpRequest": "",
+            "curlImport": "",
+            "method": "POST",
+            "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+            "authentication": "none",
+            "provideSslCertificates": false,
+            "sendQuery": false,
+            "sendHeaders": true,
+            "specifyHeaders": "keypair",
+            "headerParameters": {
+              "parameters": [
+                {
+                  "name": "Authorization",
+                  "value": "={{$env.CLICKUP_API_KEY}}"
+                },
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            },
+            "sendBody": true,
+            "contentType": "json",
+            "specifyBody": "json",
+            "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+            "options": {},
+            "infoMessage": ""
+          },
+          "id": "post-complete-comment",
+          "name": "Post Complete Comment",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.1,
+          "position": [
+            2280,
+            300
+          ],
+          "continueOnFail": true
+        },
+        {
+          "parameters": {},
+          "id": "no-op-skip",
+          "name": "Skipped",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            900,
+            500
+          ]
+        },
+        {
+          "parameters": {},
+          "id": "no-op-no-client",
+          "name": "No Client Found",
+          "type": "n8n-nodes-base.noOp",
+          "typeVersion": 1,
+          "position": [
+            1560,
+            500
+          ]
+        }
+      ],
+      "connections": {
+        "ClickUp Status Change Webhook": {
+          "main": [
+            [
+              {
+                "node": "Parse Webhook",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Parse Webhook": {
+          "main": [
+            [
+              {
+                "node": "Should Process?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Should Process?": {
+          "main": [
+            [
+              {
+                "node": "Get Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "Skipped",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Get Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Find Client by Task ID",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Find Client by Task ID": {
+          "main": [
+            [
+              {
+                "node": "Check Status Progression",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Check Status Progression": {
+          "main": [
+            [
+              {
+                "node": "Client Found?",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Client Found?": {
+          "main": [
+            [
+              {
+                "node": "Post Start Comment",
+                "type": "main",
+                "index": 0
+              }
+            ],
+            [
+              {
+                "node": "No Client Found",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Post Start Comment": {
+          "main": [
+            [
+              {
+                "node": "Trigger Main Orchestrator",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Trigger Main Orchestrator": {
+          "main": [
+            [
+              {
+                "node": "Update Processed Status",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "Update Processed Status": {
+          "main": [
+            [
+              {
+                "node": "Post Complete Comment",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "settings": {
+        "executionOrder": "v1",
+        "saveManualExecutions": true,
+        "callerPolicy": "workflowsFromSameOwner",
+        "availableInMCP": false
+      },
+      "staticData": {},
+      "pinData": null
+    },
+    "customData": {}
+  }
+]
+}

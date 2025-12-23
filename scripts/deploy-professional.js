@@ -1133,7 +1133,7 @@ async function main() {
     apiUrl: process.env.N8N_API_URL || 'http://localhost:5678/api/v1',
     apiKey: process.env.N8N_API_KEY,
     projectId: process.env.N8N_PROJECT_ID || null, // n8n Cloud project ID
-    apiGatewayUrl: process.env.API_GATEWAY_URL || 'https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod',
+    apiGatewayUrl: process.env.API_GATEWAY_URL || 'https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod',
     isCloud: (process.env.N8N_API_URL || '').includes('app.n8n.cloud'),
     workflowPrefix: process.env.WORKFLOW_PREFIX || '',
     clickupApiKey: process.env.CLICKUP_API_KEY,

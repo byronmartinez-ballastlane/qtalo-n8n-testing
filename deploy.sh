@@ -25,6 +25,15 @@ N8N_BASE_URL="${N8N_BASE_URL:-https://qtalospace.app.n8n.cloud/api/v1}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 DYNAMODB_TABLE="qtalo-n8n-clients"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ID="BFIDAvXOISVZh7tb"  # Qtalo project ID
+
+# Credential configuration
+# Maps credential type -> expected credential name
+declare -A CREDENTIAL_CONFIG
+CREDENTIAL_CONFIG["githubApi"]="GitHub API - Qtalo"
+
+# Store credential IDs discovered from n8n
+declare -A CREDENTIAL_IDS
 
 # Colors for output
 RED='\033[0;31m'
@@ -48,6 +57,93 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Setup required credentials - auto-detect from n8n or create if needed
+setup_credentials() {
+    log_info "Setting up credentials..."
+    
+    # Query n8n for all credentials and find the GitHub API one by name
+    log_info "Querying n8n for existing credentials..."
+    
+    # n8n Cloud doesn't have GET /credentials, so we need to check by deploying
+    # a test or by using credential schema. We'll use a different approach:
+    # Store the expected credential ID in an environment variable or config
+    
+    # Check if GITHUB_CRED_ID is set in environment or .env
+    if [ -n "$GITHUB_CRED_ID" ]; then
+        CREDENTIAL_IDS["githubApi"]="$GITHUB_CRED_ID"
+        log_info "Using GitHub credential from env: ${CREDENTIAL_IDS["githubApi"]}"
+    else
+        # Try to create a new credential
+        log_warning "GITHUB_CRED_ID not set, creating new GitHub API credential..."
+        
+        # Check for GitHub PAT in env or prompt
+        if [ -z "$GITHUB_PAT" ]; then
+            read -p "Enter GitHub Personal Access Token: " GITHUB_PAT
+        fi
+        
+        if [ -z "$GITHUB_USER" ]; then
+            GITHUB_USER="byronmartinez-ballastlane"  # Default
+        fi
+        
+        # Create credential via n8n API
+        local cred_response=$(curl -s -X POST "$N8N_BASE_URL/credentials" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"name\": \"${CREDENTIAL_CONFIG["githubApi"]}\",
+                \"type\": \"githubApi\",
+                \"data\": {
+                    \"accessToken\": \"$GITHUB_PAT\",
+                    \"server\": \"https://api.github.com\",
+                    \"user\": \"$GITHUB_USER\"
+                }
+            }")
+        
+        if echo "$cred_response" | jq -e '.id' > /dev/null 2>&1; then
+            local cred_id=$(echo "$cred_response" | jq -r '.id')
+            CREDENTIAL_IDS["githubApi"]="$cred_id"
+            
+            log_success "Created GitHub API credential (ID: $cred_id)"
+            log_info "Add GITHUB_CRED_ID=$cred_id to your .env file for future deployments"
+            
+            # Transfer to project
+            log_info "Transferring credential to Qtalo project..."
+            curl -s -X PUT "$N8N_BASE_URL/credentials/$cred_id/transfer" \
+                -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d "{\"destinationProjectId\": \"$PROJECT_ID\"}" > /dev/null
+        else
+            log_error "Failed to create GitHub credential"
+            echo "$cred_response" | jq '.'
+            exit 1
+        fi
+    fi
+    
+    log_success "Credentials setup complete"
+}
+
+# Inject credentials into workflow JSON
+inject_credentials() {
+    local workflow_json="$1"
+    
+    # Replace GitHub API credential references
+    if [ -n "${CREDENTIAL_IDS["githubApi"]}" ]; then
+        # Update credential ID and name for githubApi type
+        workflow_json=$(echo "$workflow_json" | jq --arg id "${CREDENTIAL_IDS["githubApi"]}" --arg name "${CREDENTIAL_CONFIG["githubApi"]}" '
+            .nodes |= map(
+                if .credentials?.githubApi then
+                    .credentials.githubApi.id = $id |
+                    .credentials.githubApi.name = $name
+                else
+                    .
+                end
+            )
+        ')
+    fi
+    
+    echo "$workflow_json"
 }
 
 # Check prerequisites
@@ -102,23 +198,59 @@ setup_aws() {
 deploy_system_workflows() {
     log_info "Deploying system workflows to n8n..."
     
+    # First setup credentials
+    setup_credentials
+    
     for workflow_file in "$SCRIPT_DIR/system/"*.json; do
         if [ -f "$workflow_file" ]; then
             workflow_name=$(basename "$workflow_file" .json)
             log_info "Deploying: $workflow_name"
             
-            # Use n8n API to create/update workflow
-            response=$(curl -s -X POST "$N8N_BASE_URL/workflows" \
-                -H "X-N8N-API-KEY: $N8N_API_KEY" \
-                -H "Content-Type: application/json" \
-                -d @"$workflow_file")
+            # Read and inject credentials
+            local workflow_json=$(cat "$workflow_file")
+            workflow_json=$(inject_credentials "$workflow_json")
             
-            if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
-                workflow_id=$(echo "$response" | jq -r '.id')
-                log_success "Deployed $workflow_name (ID: $workflow_id)"
+            # Check if workflow already exists (by name)
+            local existing_id=$(curl -s "$N8N_BASE_URL/workflows" \
+                -H "X-N8N-API-KEY: $N8N_API_KEY" | \
+                jq -r --arg name "$(echo "$workflow_json" | jq -r '.name')" \
+                '.data[] | select(.name == $name) | .id' | head -1)
+            
+            if [ -n "$existing_id" ] && [ "$existing_id" != "null" ]; then
+                # Update existing workflow
+                log_info "Updating existing workflow (ID: $existing_id)"
+                response=$(echo "$workflow_json" | curl -s -X PUT "$N8N_BASE_URL/workflows/$existing_id" \
+                    -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    -d @-)
+                
+                if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
+                    log_success "Updated $workflow_name (ID: $existing_id)"
+                else
+                    log_error "Failed to update $workflow_name"
+                    echo "$response" | jq '.'
+                fi
             else
-                log_error "Failed to deploy $workflow_name"
-                echo "$response" | jq '.'
+                # Create new workflow
+                response=$(echo "$workflow_json" | curl -s -X POST "$N8N_BASE_URL/workflows" \
+                    -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                    -H "Content-Type: application/json" \
+                    -d @-)
+                
+                if echo "$response" | jq -e '.id' > /dev/null 2>&1; then
+                    workflow_id=$(echo "$response" | jq -r '.id')
+                    log_success "Created $workflow_name (ID: $workflow_id)"
+                    
+                    # Transfer to Qtalo project
+                    log_info "Transferring to Qtalo project..."
+                    curl -s -X PUT "$N8N_BASE_URL/workflows/$workflow_id/transfer" \
+                        -H "X-N8N-API-KEY: $N8N_API_KEY" \
+                        -H "Content-Type: application/json" \
+                        -d "{\"destinationProjectId\": \"$PROJECT_ID\"}" > /dev/null
+                else
+                    log_error "Failed to deploy $workflow_name"
+                    echo "$response" | jq '.'
+                fi
             fi
         fi
     done

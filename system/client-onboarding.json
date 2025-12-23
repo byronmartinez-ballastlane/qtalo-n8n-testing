@@ -27,7 +27,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod/clients",
+        "url": "https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"client_id\": \"{{ $json.client_id }}\",\n  \"client_name\": \"{{ $json.client_name }}\",\n  \"clickup_space_id\": \"{{ $json.clickup_space_id }}\",\n  \"reply_api_key\": \"{{ $json.reply_api_key }}\",\n  \"clickup_api_key\": \"{{ $json.clickup_api_key }}\",\n  \"reply_workspace_id\": \"{{ $json.reply_workspace_id }}\"\n}",

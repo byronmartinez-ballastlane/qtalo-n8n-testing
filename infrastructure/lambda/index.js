@@ -55,6 +55,13 @@ exports.handler = async (event) => {
   
   try {
     // Route handling
+    
+    // Check for /clients/by-task/{taskId} path pattern first
+    if (path.includes('/clients/by-task/') && method === 'GET') {
+      const taskId = path.split('/clients/by-task/')[1];
+      return await getClientByTaskId(taskId);
+    }
+    
     if (path.includes('/clients') && method === 'GET') {
       // List all clients or get specific client
       const clientId = event.pathParameters?.clientId;

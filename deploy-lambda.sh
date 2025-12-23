@@ -8,7 +8,7 @@ export AWS_PROFILE="bla"
 export AWS_DEFAULT_REGION="us-east-1"
 FUNCTION_NAME="replyio-signature-automation"
 REGION="us-east-1"
-RUNTIME="nodejs20.x"
+RUNTIME="nodejs22.x"
 
 echo "=========================================="
 echo "Reply.io Lambda Deployment Script"

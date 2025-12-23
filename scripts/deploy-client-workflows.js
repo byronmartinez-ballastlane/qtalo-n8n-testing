@@ -22,7 +22,7 @@ const path = require('path');
 // Configuration
 const N8N_API_URL = process.env.N8N_API_URL || 'https://qtalospace.app.n8n.cloud/api/v1';
 const N8N_API_KEY = process.env.N8N_API_KEY;
-const AWS_API_URL = process.env.AWS_API_URL || 'https://vk6ueupecj.execute-api.us-east-1.amazonaws.com/prod';
+const AWS_API_URL = process.env.AWS_API_URL || 'https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod';
 const PROJECT_ID = process.env.N8N_PROJECT_ID || 'BFIDAvXOISVZh7tb';
 
 // Template mapping
