@@ -617,11 +617,80 @@
       }
     },
     {
+      "id": "update-orchestrator-phase-ids",
+      "name": "Update Orchestrator with Phase IDs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2770, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.workflow_ids.orchestrator }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "options": {}
+      },
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "id": "inject-phase-ids-to-orchestrator",
+      "name": "Inject Phase IDs to Orchestrator",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2880, 200],
+      "parameters": {
+        "jsCode": "// Get the orchestrator workflow and inject Phase workflow IDs\nconst orchestratorWorkflow = $input.first().json;\nconst collectedIds = $('Collect Workflow IDs').first().json;\nconst workflowIds = collectedIds.workflow_ids;\n\n// Get the Phase workflow IDs\nconst phase1Id = workflowIds.phase1 || '';\nconst phase2Id = workflowIds.phase2 || '';\nconst phase3Id = workflowIds.phase3 || '';\n\nconsole.log('Injecting Phase IDs into Orchestrator:');\nconsole.log('- Phase 1:', phase1Id);\nconsole.log('- Phase 2:', phase2Id);\nconsole.log('- Phase 3:', phase3Id);\n\n// Update nodes that have placeholder workflow IDs\nconst updatedNodes = orchestratorWorkflow.nodes.map(node => {\n  if (node.parameters && node.parameters.workflowId) {\n    // Replace Phase workflow ID placeholders\n    if (node.parameters.workflowId === '{{PHASE1_WORKFLOW_ID}}' || node.name.includes('Phase 1')) {\n      node.parameters.workflowId = phase1Id;\n      console.log(`Updated ${node.name} with Phase 1 ID: ${phase1Id}`);\n    }\n    if (node.parameters.workflowId === '{{PHASE2_WORKFLOW_ID}}' || node.name.includes('Phase 2')) {\n      node.parameters.workflowId = phase2Id;\n      console.log(`Updated ${node.name} with Phase 2 ID: ${phase2Id}`);\n    }\n    if (node.parameters.workflowId === '{{PHASE3_WORKFLOW_ID}}' || node.name.includes('Phase 3')) {\n      node.parameters.workflowId = phase3Id;\n      console.log(`Updated ${node.name} with Phase 3 ID: ${phase3Id}`);\n    }\n  }\n  return node;\n});\n\n// Prepare updated workflow for API\nconst updatedWorkflow = {\n  name: orchestratorWorkflow.name,\n  nodes: updatedNodes,\n  connections: orchestratorWorkflow.connections,\n  settings: orchestratorWorkflow.settings || { executionOrder: 'v1' }\n};\n\nreturn [{\n  json: {\n    orchestrator_id: workflowIds.orchestrator,\n    updated_workflow: updatedWorkflow,\n    workflow_ids: workflowIds,\n    client_id: collectedIds.client_id,\n    client_name: collectedIds.client_name,\n    clickup_task_id: collectedIds.clickup_task_id\n  }\n}];"
+      }
+    },
+    {
+      "id": "save-updated-orchestrator",
+      "name": "Save Updated Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2990, 200],
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.orchestrator_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.updated_workflow) }}",
+        "options": {}
+      },
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "id": "prepare-for-activation",
+      "name": "Prepare for Activation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [3100, 200],
+      "parameters": {
+        "jsCode": "// Pass through the collected data for activation step\nconst injectedData = $('Inject Phase IDs to Orchestrator').first().json;\n\nreturn [{\n  json: {\n    client_id: injectedData.client_id,\n    client_name: injectedData.client_name,\n    workflow_ids: injectedData.workflow_ids,\n    clickup_task_id: injectedData.clickup_task_id\n  }\n}];"
+      }
+    },
+    {
       "id": "activate-orchestrator",
       "name": "Activate Orchestrator",
       "type": "n8n-nodes-base.n8n",
       "typeVersion": 1,
-      "position": [2880, 300],
+      "position": [3210, 200],
       "parameters": {
         "resource": "workflow",
         "operation": "activate",
@@ -645,10 +714,10 @@
       "name": "Update Client Status in AWS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [3100, 300],
+      "position": [3320, 200],
       "parameters": {
         "method": "PUT",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Collect Workflow IDs').item.json.client_id }}",
+        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Prepare for Activation').item.json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -658,7 +727,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ status: 'active', workflow_ids: $('Collect Workflow IDs').item.json.workflow_ids || {}, clickup_task_id: $('Collect Workflow IDs').item.json.clickup_task_id, deployed_at: new Date().toISOString() }) }}",
+        "jsonBody": "={{ JSON.stringify({ status: 'active', workflow_ids: $('Prepare for Activation').item.json.workflow_ids || {}, clickup_task_id: $('Prepare for Activation').item.json.clickup_task_id, deployed_at: new Date().toISOString() }) }}",
         "options": {}
       }
     },
@@ -667,11 +736,11 @@
       "name": "Build Success Response",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
-      "position": [3320, 300],
+      "position": [3430, 200],
       "parameters": {
         "mode": "raw",
         "options": {},
-        "jsonOutput": "={{ JSON.stringify({ status: 'success', message: 'Client onboarded successfully', client_id: $('Collect Workflow IDs').item.json.client_id, client_name: $('Collect Workflow IDs').item.json.client_name, workflow_ids: $('Collect Workflow IDs').item.json.workflow_ids || {} }) }}"
+        "jsonOutput": "={{ JSON.stringify({ status: 'success', message: 'Client onboarded successfully', client_id: $('Prepare for Activation').item.json.client_id, client_name: $('Prepare for Activation').item.json.client_name, workflow_ids: $('Prepare for Activation').item.json.workflow_ids || {} }) }}"
       }
     },
     {
@@ -679,7 +748,7 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [3540, 300],
+      "position": [3540, 200],
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
@@ -782,6 +851,18 @@
       "main": [[{ "node": "Collect Workflow IDs", "type": "main", "index": 0 }]]
     },
     "Collect Workflow IDs": {
+      "main": [[{ "node": "Update Orchestrator with Phase IDs", "type": "main", "index": 0 }]]
+    },
+    "Update Orchestrator with Phase IDs": {
+      "main": [[{ "node": "Inject Phase IDs to Orchestrator", "type": "main", "index": 0 }]]
+    },
+    "Inject Phase IDs to Orchestrator": {
+      "main": [[{ "node": "Save Updated Orchestrator", "type": "main", "index": 0 }]]
+    },
+    "Save Updated Orchestrator": {
+      "main": [[{ "node": "Prepare for Activation", "type": "main", "index": 0 }]]
+    },
+    "Prepare for Activation": {
       "main": [[{ "node": "Activate Orchestrator", "type": "main", "index": 0 }]]
     },
     "Activate Orchestrator": {

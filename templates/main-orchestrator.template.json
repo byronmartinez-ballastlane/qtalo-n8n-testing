@@ -116,7 +116,7 @@
     },
     {
       "parameters": {
-        "workflowId": "={{$workflow.id}}",
+        "workflowId": "{{PHASE1_WORKFLOW_ID}}",
         "fields": {
           "values": [
             {
@@ -221,7 +221,7 @@
     },
     {
       "parameters": {
-        "workflowId": "={{$workflow.id}}",
+        "workflowId": "{{PHASE2_WORKFLOW_ID}}",
         "fields": {
           "values": [
             {
@@ -254,7 +254,7 @@
     },
     {
       "parameters": {
-        "workflowId": "={{$workflow.id}}",
+        "workflowId": "{{PHASE3_WORKFLOW_ID}}",
         "fields": {
           "values": [
             {
