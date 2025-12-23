@@ -16,11 +16,52 @@
       }
     },
     {
+      "id": "dedupe-task",
+      "name": "Deduplicate Task",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [350, 300],
+      "parameters": {
+        "jsCode": "// Deduplication using staticData to prevent multiple triggers for same task\nconst taskId = $json.body?.task_id;\n\nif (!taskId) {\n  console.log('⚠️ No task_id found in webhook payload');\n  return [{ json: { ...$json, _skip_dedupe: false } }];\n}\n\n// Get workflow's static data for persistence across executions\nconst staticData = $getWorkflowStaticData('global');\nconst processedTasks = staticData.processedTasks || {};\nconst now = Date.now();\n\n// Clean up old entries (older than 5 minutes)\nconst DEDUPE_WINDOW_MS = 5 * 60 * 1000;\nfor (const [id, timestamp] of Object.entries(processedTasks)) {\n  if (now - timestamp > DEDUPE_WINDOW_MS) {\n    delete processedTasks[id];\n  }\n}\n\n// Check if this task was already processed recently\nif (processedTasks[taskId]) {\n  const secondsAgo = Math.round((now - processedTasks[taskId]) / 1000);\n  console.log(`⏭️ Task ${taskId} was already processed ${secondsAgo}s ago - skipping duplicate`);\n  return [{ json: { ...$json, _skip_dedupe: true, _dedupe_reason: `Already processed ${secondsAgo}s ago` } }];\n}\n\n// Mark this task as processed\nprocessedTasks[taskId] = now;\nstaticData.processedTasks = processedTasks;\n\nconsole.log(`✅ Task ${taskId} is new - proceeding with onboarding`);\nreturn [{ json: { ...$json, _skip_dedupe: false } }];"
+      }
+    },
+    {
+      "id": "check-dedupe",
+      "name": "Is Duplicate?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json._skip_dedupe }}",
+              "rightValue": false,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "dedupe-response",
+      "name": "Duplicate Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [700, 500],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Duplicate webhook - already processing this task\", \"task_id\": \"{{ $json.body?.task_id }}\" }",
+        "options": {}
+      }
+    },
+    {
       "id": "check-status",
       "name": "Check If Onboarding Status",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [460, 300],
+      "position": [700, 300],
       "parameters": {
         "conditions": {
           "options": {
@@ -44,7 +85,7 @@
       "name": "Fetch ClickUp Task",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [680, 300],
+      "position": [920, 300],
       "parameters": {
         "method": "GET",
         "url": "=https://api.clickup.com/api/v2/task/{{ $json.body.task_id }}",
@@ -64,7 +105,7 @@
       "name": "Extract Client Info",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 300],
+      "position": [1140, 300],
       "parameters": {
         "jsCode": "// Extract custom fields from ClickUp task\nconst task = $input.first().json;\nconst customFields = task.custom_fields || [];\n\n// Field IDs from ClickUp\nconst FIELD_IDS = {\n  client_id: '8a92110c-90e6-43bc-9573-ff01a39c39d5',\n  reply_api_key: '7be3268d-ced7-4895-9026-9ea72437a8af',\n  reply_user: 'e7cddd23-549d-46e7-a46f-ef97949f0919',\n  reply_password: '59e1624b-318c-491d-a4cd-75332fdaad0e',\n  clickup_api_key: '4c99c4ad-cc34-4731-9cb2-b53120218c82',\n  company_name: '752f908a-9338-40b8-9737-9405267da718'\n};\n\n// UUID v4 generator (crypto not available in n8n)\nfunction generateUUID() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\n// Extract values\nconst getFieldValue = (id) => {\n  const field = customFields.find(f => f.id === id);\n  return field?.value || '';\n};\n\nconst companyName = getFieldValue(FIELD_IDS.company_name);\nconst replyApiKey = getFieldValue(FIELD_IDS.reply_api_key);\nconst replyUser = getFieldValue(FIELD_IDS.reply_user);\nconst replyPassword = getFieldValue(FIELD_IDS.reply_password);\nconst clickupApiKey = getFieldValue(FIELD_IDS.clickup_api_key);\n\n// Validate required fields (client_id is NO LONGER required from ClickUp)\nif (!replyApiKey || !replyUser || !replyPassword || !clickupApiKey) {\n  throw new Error(`Missing required fields. Found: reply_api_key=${!!replyApiKey}, reply_user=${!!replyUser}, reply_password=${!!replyPassword}, clickup_api_key=${!!clickupApiKey}`);\n}\n\n// GENERATE UUID for client_id - DynamoDB is now the source of truth\nconst clientId = generateUUID();\n\nconsole.log(`🆔 Generated client_id: ${clientId}`);\n\nreturn {\n  json: {\n    client_id: clientId,\n    client_id_field_id: FIELD_IDS.client_id,\n    client_name: companyName || task.name || clientId,\n    reply_api_key: replyApiKey,\n    reply_io_user: replyUser,\n    reply_io_password: replyPassword,\n    clickup_api_key: clickupApiKey,\n    clickup_task_id: task.id,\n    github_owner: 'byronmartinez-ballastlane',\n    github_repo: 'qtalo-n8n-testing',\n    templates_path: 'templates'\n  }\n};"
       }
@@ -555,7 +596,16 @@
   ],
   "connections": {
     "Webhook: Onboard Client": {
-      "main": [[{ "node": "Check If Onboarding Status", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Deduplicate Task", "type": "main", "index": 0 }]]
+    },
+    "Deduplicate Task": {
+      "main": [[{ "node": "Is Duplicate?", "type": "main", "index": 0 }]]
+    },
+    "Is Duplicate?": {
+      "main": [
+        [{ "node": "Check If Onboarding Status", "type": "main", "index": 0 }],
+        [{ "node": "Duplicate Response", "type": "main", "index": 0 }]
+      ]
     },
     "Check If Onboarding Status": {
       "main": [[{ "node": "Fetch ClickUp Task", "type": "main", "index": 0 }]]
