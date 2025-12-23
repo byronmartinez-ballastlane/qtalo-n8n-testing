@@ -73,7 +73,7 @@
           },
           "conditions": [
             {
-              "leftValue": "={{ $json.body.history_items?.[0]?.after?.status || $json.body.status?.status || '' }}",
+              "leftValue": "={{ $('Webhook: Onboard Client').item.json.body.history_items?.[0]?.after?.status || $('Webhook: Onboard Client').item.json.body.status?.status || '' }}",
               "rightValue": "onboarding",
               "operator": {
                 "type": "string",
@@ -92,7 +92,7 @@
       "position": [920, 300],
       "parameters": {
         "method": "GET",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $json.body.task_id }}",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
