@@ -157,8 +157,8 @@
       "parameters": {
         "method": "POST",
         "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "clickUpApi",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -178,7 +178,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [1860, 300],
-      "continueOnFail": true
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KQ4DCkxv3kBoRgK1",
+          "name": "System ClickUp API"
+        }
+      }
     },
     {
       "parameters": {
@@ -232,8 +238,8 @@
       "parameters": {
         "method": "POST",
         "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
-        "authentication": "predefinedCredentialType",
-        "nodeCredentialType": "clickUpApi",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -253,7 +259,13 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [2520, 300],
-      "continueOnFail": true
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "KQ4DCkxv3kBoRgK1",
+          "name": "System ClickUp API"
+        }
+      }
     },
     {
       "parameters": {},
