@@ -188,15 +188,17 @@
     },
     {
       "parameters": {
-        "workflowId": "={{ $('Check Status Progression').first().json.workflow_ids['orchestrator'] || $('Check Status Progression').first().json.workflow_ids['main-orchestrator'] || '' }}",
-        "fields": {
-          "values": [
-            {
-              "name": "task_id",
-              "stringValue": "={{ $('Check Status Progression').first().json.task_id }}"
-            }
-          ]
-        },
+        "jsCode": "// Prepare data for the Orchestrator workflow\n// This ensures task_id is properly passed to the sub-workflow\nconst statusData = $('Check Status Progression').first().json;\n\nreturn [{\n  json: {\n    task_id: statusData.task_id,\n    client_id: statusData.client_id,\n    client_name: statusData.client_name,\n    workflow_ids: statusData.workflow_ids,\n    new_status: $('Parse Webhook').first().json.new_status\n  }\n}];"
+      },
+      "id": "prepare-orchestrator-data",
+      "name": "Prepare Orchestrator Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1970, 300]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $json.workflow_ids['orchestrator'] || $json.workflow_ids['main-orchestrator'] || '' }}",
         "options": {
           "waitForSubWorkflow": false
         }
@@ -205,7 +207,7 @@
       "name": "Trigger Main Orchestrator",
       "type": "n8n-nodes-base.executeWorkflow",
       "typeVersion": 1,
-      "position": [2080, 300],
+      "position": [2180, 300],
       "continueOnFail": false
     },
     {
@@ -231,7 +233,7 @@
       "name": "Update Processed Status",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2300, 300],
+      "position": [2390, 300],
       "continueOnFail": true
     },
     {
@@ -258,7 +260,7 @@
       "name": "Post Complete Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2520, 300],
+      "position": [2620, 300],
       "continueOnFail": true,
       "credentials": {
         "httpHeaderAuth": {
@@ -322,6 +324,9 @@
       ]
     },
     "Post Start Comment": {
+      "main": [[{ "node": "Prepare Orchestrator Data", "type": "main", "index": 0 }]]
+    },
+    "Prepare Orchestrator Data": {
       "main": [[{ "node": "Trigger Main Orchestrator", "type": "main", "index": 0 }]]
     },
     "Trigger Main Orchestrator": {
