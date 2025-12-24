@@ -163,11 +163,13 @@ async function getClient(clientId) {
 }
 
 // Find client by ClickUp task_id (for task→client mapping)
+// Excludes "claiming" placeholder records - only returns fully onboarded clients
 async function getClientByTaskId(taskId) {
   const params = {
     TableName: TABLE_NAME,
-    FilterExpression: 'clickup_task_id = :taskId',
-    ExpressionAttributeValues: { ':taskId': taskId }
+    FilterExpression: 'clickup_task_id = :taskId AND (attribute_not_exists(#status) OR #status <> :claiming)',
+    ExpressionAttributeNames: { '#status': 'status' },
+    ExpressionAttributeValues: { ':taskId': taskId, ':claiming': 'claiming' }
   };
   
   const result = await docClient.send(new ScanCommand(params));

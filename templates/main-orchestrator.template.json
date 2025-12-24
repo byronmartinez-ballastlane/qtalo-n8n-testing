@@ -32,7 +32,7 @@
       "position": [460, 300],
       "parameters": {
         "method": "GET",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id || $json.body?.task_id || $json.body?.payload?.id || $json.webhook_event?.task_id || $json.history_items?.[0]?.id || \"86acb09yw\" }}",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id || $json.body?.task_id || $json.body?.payload?.id || $json.webhook_event?.task_id || $json.history_items?.[0]?.id }}",
         "authentication": "genericCredentialType",
         "sendHeaders": false,
         "options": {},

@@ -557,6 +557,8 @@ resource "aws_api_gateway_deployment" "api" {
     aws_api_gateway_integration.credentials_options,
     aws_api_gateway_integration.workflows_put,
     aws_api_gateway_integration.sync_post,
+    aws_api_gateway_integration.claim_put,
+    aws_api_gateway_integration.claim_options,
   ]
 
   triggers = {
@@ -569,6 +571,8 @@ resource "aws_api_gateway_deployment" "api" {
       aws_api_gateway_resource.credentials.id,
       aws_api_gateway_resource.workflows.id,
       aws_api_gateway_resource.sync.id,
+      aws_api_gateway_resource.claim.id,
+      aws_api_gateway_resource.claim_task_id.id,
       aws_api_gateway_method.health_get.id,
       aws_api_gateway_method.clients_get.id,
       aws_api_gateway_method.clients_post.id,
@@ -581,6 +585,8 @@ resource "aws_api_gateway_deployment" "api" {
       aws_api_gateway_method.credentials_put.id,
       aws_api_gateway_method.workflows_put.id,
       aws_api_gateway_method.sync_post.id,
+      aws_api_gateway_method.claim_put.id,
+      aws_api_gateway_method.claim_options.id,
     ]))
   }
 
