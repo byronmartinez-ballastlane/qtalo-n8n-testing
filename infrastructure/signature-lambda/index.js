@@ -39,7 +39,8 @@ async function getClientCredentials(clientId) {
     // MULTI-TENANCY: expected_domains is REQUIRED for domain validation
     const expectedDomains = credentials.expected_domains || [];
     if (expectedDomains.length === 0) {
-      console.warn(`⚠️ WARNING: No expected_domains configured for client ${clientId}. Domain validation will be skipped.`);
+      console.error(`❌ CRITICAL: No expected_domains configured for client ${clientId}. This is required for multi-tenancy security.`);
+      // Don't throw here - let validateAccountDomains handle the block
     } else {
       console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
     }
@@ -58,8 +59,18 @@ async function getClientCredentials(clientId) {
 // MULTI-TENANCY: Validate that all account emails belong to expected domains
 function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
   if (!expectedDomains || expectedDomains.length === 0) {
-    console.warn('⚠️ No expected_domains configured - skipping domain validation');
-    return { valid: true, accounts, rejectedAccounts: [], message: 'Domain validation skipped - no expected_domains configured' };
+    const errorMsg = 'SECURITY BLOCK: No expected_domains configured for this client. ' +
+      'Cannot process accounts without domain whitelist. ' +
+      'Please configure expected_domains in client settings before proceeding.';
+    console.error(`❌ ${errorMsg}`);
+    return { 
+      valid: false, 
+      accounts: [], 
+      rejectedAccounts: accounts.map(a => ({ ...a, rejectionReason: 'No expected_domains configured' })), 
+      message: errorMsg,
+      securityBlock: true,
+      missingDomainConfig: true
+    };
   }
   
   const normalizedDomains = expectedDomains.map(d => d.toLowerCase().trim());
