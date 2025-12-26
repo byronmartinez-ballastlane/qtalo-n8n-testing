@@ -53,3 +53,22 @@ output "s3_bucket_arn" {
   description = "ARN of the S3 bucket for Lambda deployments"
   value       = aws_s3_bucket.lambda_deployments.arn
 }
+
+# ============================================================
+# Signature Automation Lambda Outputs
+# ============================================================
+
+output "signature_lambda_arn" {
+  description = "ARN of the Reply.io Signature Automation Lambda"
+  value       = aws_lambda_function.signature_automation.arn
+}
+
+output "signature_lambda_function_url" {
+  description = "Function URL for direct Lambda invocation from n8n"
+  value       = aws_lambda_function_url.signature_automation.function_url
+}
+
+output "signature_lambda_role_arn" {
+  description = "ARN of the Signature Lambda IAM role"
+  value       = aws_iam_role.signature_lambda_role.arn
+}

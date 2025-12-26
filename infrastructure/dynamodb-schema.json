@@ -37,6 +37,8 @@
     "client_name": "ACME Corporation",
     "clickup_space_id": "90121345678",
     "secrets_arn": "arn:aws:secretsmanager:us-east-1:123456789:secret:n8n/clients/acme-corp",
+    "expected_domains": ["acme-corp.com", "acme-corp.io"],
+    "_comment_expected_domains": "REQUIRED: List of email domains this client owns. Used for multi-tenant validation to prevent cross-client data modifications.",
     "workflow_ids": {
       "main_orchestrator": "workflow-abc123",
       "phase1_import": "workflow-def456",

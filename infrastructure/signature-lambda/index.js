@@ -23,7 +23,7 @@ const secretsClient = new SecretsManagerClient({ region: REGION });
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch client credentials from AWS Secrets Manager
+// Fetch client credentials AND expected_domains from AWS Secrets Manager
 async function getClientCredentials(clientId) {
   const secretName = `n8n/clients/${clientId}`;
   
@@ -36,14 +36,91 @@ async function getClientCredentials(clientId) {
     const credentials = JSON.parse(result.SecretString);
     console.log(`✅ Retrieved credentials for client: ${clientId}`);
     
+    // MULTI-TENANCY: expected_domains is REQUIRED for domain validation
+    const expectedDomains = credentials.expected_domains || [];
+    if (expectedDomains.length === 0) {
+      console.warn(`⚠️ WARNING: No expected_domains configured for client ${clientId}. Domain validation will be skipped.`);
+    } else {
+      console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
+    }
+    
     return {
       replyioEmail: credentials.reply_io_user,
-      replyioPassword: credentials.reply_io_password
+      replyioPassword: credentials.reply_io_password,
+      expectedDomains: expectedDomains
     };
   } catch (error) {
     console.error(`❌ Failed to fetch credentials for client ${clientId}:`, error.message);
     throw new Error(`Failed to fetch credentials for client: ${clientId}. Error: ${error.message}`);
   }
+}
+
+// MULTI-TENANCY: Validate that all account emails belong to expected domains
+function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
+  if (!expectedDomains || expectedDomains.length === 0) {
+    console.warn('⚠️ No expected_domains configured - skipping domain validation');
+    return { valid: true, accounts, rejectedAccounts: [], message: 'Domain validation skipped - no expected_domains configured' };
+  }
+  
+  const normalizedDomains = expectedDomains.map(d => d.toLowerCase().trim());
+  const validAccounts = [];
+  const rejectedAccounts = [];
+  
+  for (const account of accounts) {
+    const email = (account.email || '').toLowerCase();
+    const domain = email.split('@')[1];
+    
+    if (!domain) {
+      rejectedAccounts.push({ 
+        ...account, 
+        rejectionReason: 'Invalid email format - no domain found' 
+      });
+      continue;
+    }
+    
+    if (normalizedDomains.includes(domain)) {
+      validAccounts.push(account);
+    } else {
+      rejectedAccounts.push({ 
+        ...account, 
+        rejectionReason: `Domain '${domain}' not in expected domains: [${normalizedDomains.join(', ')}]` 
+      });
+    }
+  }
+  
+  console.log(`📊 Domain validation results:`);
+  console.log(`   ✅ Valid accounts: ${validAccounts.length}`);
+  console.log(`   ❌ Rejected accounts: ${rejectedAccounts.length}`);
+  
+  if (rejectedAccounts.length > 0) {
+    console.log(`   Rejected emails:`);
+    rejectedAccounts.forEach(a => console.log(`      - ${a.email}: ${a.rejectionReason}`));
+  }
+  
+  // If ALL accounts are rejected, this is likely a misconfiguration - fail the request
+  if (validAccounts.length === 0 && accounts.length > 0) {
+    const errorMsg = `SECURITY BLOCK: All ${accounts.length} accounts were rejected by domain validation. ` +
+      `Expected domains: [${normalizedDomains.join(', ')}]. ` +
+      `Received domains: [${[...new Set(accounts.map(a => a.email.split('@')[1]))].join(', ')}]. ` +
+      `This may indicate a misconfiguration or cross-tenant data leak attempt.`;
+    console.error(`❌ ${errorMsg}`);
+    return { 
+      valid: false, 
+      accounts: [], 
+      rejectedAccounts, 
+      message: errorMsg,
+      securityBlock: true
+    };
+  }
+  
+  return { 
+    valid: true, 
+    accounts: validAccounts, 
+    rejectedAccounts,
+    message: rejectedAccounts.length > 0 
+      ? `${rejectedAccounts.length} accounts rejected by domain validation, ${validAccounts.length} accounts will be processed`
+      : `All ${validAccounts.length} accounts passed domain validation`
+  };
 }
 
 // Helper to send webhook notification via GET with query parameters
@@ -106,10 +183,13 @@ exports.handler = async (event, context) => {
     console.log('Received event body:', JSON.stringify(body, null, 2));
     
     // NEW: Accept client_id to fetch credentials from Secrets Manager
-    const { client_id, accounts, async: asyncMode, webhookUrl } = body;
+    const { client_id, accounts, async: asyncMode, webhookUrl, dry_run: dryRun } = body;
     
     // Also support legacy mode with direct credentials (for backward compatibility)
     let { replyioEmail, replyioPassword } = body;
+    
+    // MULTI-TENANCY: Expected domains for domain validation (from secrets or body)
+    let expectedDomains = body.expected_domains || [];
     
     console.log('Parsed parameters:', { 
       client_id: client_id || 'not provided',
@@ -117,7 +197,9 @@ exports.handler = async (event, context) => {
       replyioPassword: replyioPassword ? '***' : undefined, 
       accounts: accounts ? `${accounts.length} accounts` : undefined,
       async: asyncMode,
-      webhookUrl: webhookUrl ? 'provided' : 'not provided'
+      webhookUrl: webhookUrl ? 'provided' : 'not provided',
+      dry_run: dryRun || false,
+      expected_domains: expectedDomains.length > 0 ? expectedDomains : 'from secrets'
     });
     
     // If client_id is provided, fetch credentials from Secrets Manager
@@ -127,6 +209,12 @@ exports.handler = async (event, context) => {
         const credentials = await getClientCredentials(client_id);
         replyioEmail = credentials.replyioEmail;
         replyioPassword = credentials.replyioPassword;
+        
+        // Get expected_domains from secrets if not provided in request
+        if (expectedDomains.length === 0 && credentials.expectedDomains) {
+          expectedDomains = credentials.expectedDomains;
+          console.log(`📋 Using expected_domains from Secrets Manager: [${expectedDomains.join(', ')}]`);
+        }
         
         if (!replyioEmail || !replyioPassword) {
           return {
@@ -239,6 +327,66 @@ exports.handler = async (event, context) => {
       };
     }
 
+    // ============================================================
+    // MULTI-TENANCY: Domain Validation (CRITICAL SAFETY CHECK)
+    // ============================================================
+    console.log('🔒 Performing multi-tenancy domain validation...');
+    const domainValidation = validateAccountDomains(accounts, expectedDomains, dryRun);
+    
+    if (!domainValidation.valid) {
+      // Security block - all accounts rejected
+      return {
+        statusCode: 403,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          error: 'SECURITY_BLOCK',
+          message: domainValidation.message,
+          securityBlock: true,
+          client_id: client_id,
+          expected_domains: expectedDomains,
+          received_domains: [...new Set(accounts.map(a => a.email.split('@')[1]))],
+          rejected_accounts: domainValidation.rejectedAccounts.map(a => ({
+            email: a.email,
+            reason: a.rejectionReason
+          })),
+          hint: 'Ensure expected_domains in AWS Secrets Manager matches the domains in your mailbox CSV'
+        })
+      };
+    }
+    
+    // Use validated accounts only
+    const validatedAccounts = domainValidation.accounts;
+    const rejectedAccounts = domainValidation.rejectedAccounts;
+    
+    console.log(`✅ Domain validation passed: ${validatedAccounts.length} accounts approved, ${rejectedAccounts.length} rejected`);
+    
+    // DRY RUN MODE: Return validation results without making changes
+    if (dryRun === true) {
+      console.log('🔍 DRY RUN MODE - Returning validation results without modifying signatures');
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dry_run: true,
+          message: 'Validation completed - no changes made',
+          domain_validation: {
+            expected_domains: expectedDomains,
+            validation_result: domainValidation.message
+          },
+          approved_accounts: validatedAccounts.map(a => ({ email: a.email, accountId: a.accountId })),
+          rejected_accounts: rejectedAccounts.map(a => ({ email: a.email, reason: a.rejectionReason })),
+          summary: {
+            total_requested: accounts.length,
+            approved: validatedAccounts.length,
+            rejected: rejectedAccounts.length
+          },
+          next_steps: validatedAccounts.length > 0 
+            ? 'Run again without dry_run=true to apply signatures'
+            : 'Fix expected_domains configuration before proceeding'
+        })
+      };
+    }
+
     // If async mode, process everything then send webhook
     // Note: We CANNOT return 202 early - Lambda will terminate
     // So we accept the API Gateway timeout and use webhook for results
@@ -247,8 +395,20 @@ exports.handler = async (event, context) => {
       console.log('Note: API Gateway may timeout (503) but Lambda continues processing');
       
       try {
-        const result = await processSignatures(replyioEmail, replyioPassword, accounts);
-        console.log('Processing completed successfully:', JSON.stringify(result, null, 2));
+        const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts);
+        
+        // Add rejected accounts to result for transparency
+        const enhancedResult = {
+          ...result,
+          domain_validation: {
+            expected_domains: expectedDomains,
+            approved_count: validatedAccounts.length,
+            rejected_count: rejectedAccounts.length,
+            rejected_accounts: rejectedAccounts.map(a => ({ email: a.email, reason: a.rejectionReason }))
+          }
+        };
+        
+        console.log('Processing completed successfully:', JSON.stringify(enhancedResult, null, 2));
         
         // Send webhook notification if URL provided
         if (webhookUrl) {
@@ -256,7 +416,7 @@ exports.handler = async (event, context) => {
           await sendWebhook(webhookUrl, {
             status: 'completed',
             timestamp: new Date().toISOString(),
-            result: result
+            result: enhancedResult
           });
           console.log('Webhook sent successfully');
         }
@@ -264,7 +424,7 @@ exports.handler = async (event, context) => {
         return {
           statusCode: 200,
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(result)
+          body: JSON.stringify(enhancedResult)
         };
       } catch (error) {
         console.error('Processing error:', error);
@@ -276,7 +436,12 @@ exports.handler = async (event, context) => {
               status: 'failed',
               timestamp: new Date().toISOString(),
               error: error.message,
-              stack: error.stack
+              stack: error.stack,
+              domain_validation: {
+                expected_domains: expectedDomains,
+                approved_count: validatedAccounts.length,
+                rejected_count: rejectedAccounts.length
+              }
             });
           } catch (webhookError) {
             console.error('Failed to send error webhook:', webhookError);
@@ -287,10 +452,26 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Synchronous processing (original behavior)
+    // Synchronous processing (original behavior) - also use validated accounts
     console.log('Starting synchronous processing...');
-    const result = await processSignatures(replyioEmail, replyioPassword, accounts);
-    return result;
+    const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts);
+    
+    // Add domain validation info to sync result
+    const enhancedSyncResult = {
+      ...result,
+      domain_validation: {
+        expected_domains: expectedDomains,
+        approved_count: validatedAccounts.length,
+        rejected_count: rejectedAccounts.length,
+        rejected_accounts: rejectedAccounts.map(a => ({ email: a.email, reason: a.rejectionReason }))
+      }
+    };
+    
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(enhancedSyncResult)
+    };
 
   } catch (error) {
     console.error('Lambda error:', error);

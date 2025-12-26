@@ -167,3 +167,128 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
     Environment = var.environment
   }
 }
+
+# ============================================================
+# Reply.io Signature Automation Lambda
+# ============================================================
+
+# IAM Role for Signature Lambda (Puppeteer-based)
+resource "aws_iam_role" "signature_lambda_role" {
+  name = "replyio-signature-automation-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    Purpose     = "Reply.io signature automation with Puppeteer"
+  }
+}
+
+resource "aws_iam_role_policy" "signature_lambda_policy" {
+  name = "replyio-signature-automation-policy"
+  role = aws_iam_role.signature_lambda_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:n8n/clients/*"
+      }
+    ]
+  })
+}
+
+# Import existing Lambda (already deployed manually)
+# This imports the existing replyio-signature-automation function
+resource "aws_lambda_function" "signature_automation" {
+  function_name = "replyio-signature-automation"
+  role          = aws_iam_role.signature_lambda_role.arn
+  handler       = "index.handler"
+  runtime       = "nodejs20.x"
+  timeout       = 900
+  memory_size   = 3008
+
+  # Deploy from S3 bucket - use hardcoded values since bucket exists
+  s3_bucket = "qtalo-n8n-lambda-deployments-prod"
+  s3_key    = "replyio-signature-automation/function.zip"
+
+  # Ephemeral storage for Puppeteer/Chromium
+  ephemeral_storage {
+    size = 2048
+  }
+
+  environment {
+    variables = {
+      NODE_ENV = var.environment
+    }
+  }
+
+  layers = [
+    "arn:aws:lambda:${var.aws_region}:764866452798:layer:chrome-aws-lambda:45"
+  ]
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    Purpose     = "Reply.io signature automation with Puppeteer"
+    ManagedBy   = "Terraform"
+  }
+
+  lifecycle {
+    # Ignore changes to source code - deployments handled via CI/CD
+    ignore_changes = [
+      s3_bucket,
+      s3_key,
+      source_code_hash
+    ]
+  }
+}
+
+resource "aws_cloudwatch_log_group" "signature_lambda_logs" {
+  name              = "/aws/lambda/replyio-signature-automation"
+  retention_in_days = 14
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+# Lambda Function URL for direct invocation from n8n
+resource "aws_lambda_function_url" "signature_automation" {
+  function_name      = aws_lambda_function.signature_automation.function_name
+  authorization_type = "NONE"
+
+  cors {
+    allow_credentials = false
+    allow_origins     = ["*"]
+    allow_methods     = ["POST"]
+    allow_headers     = ["content-type"]
+    max_age           = 86400
+  }
+}

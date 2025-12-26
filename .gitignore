@@ -47,3 +47,6 @@ replyio-lambda-deploy/.credentials/
 
 # Execution logs (may contain sensitive data)
 execution-logs/
+
+# Lambda deploy folder (contains node_modules copy)
+replyio-lambda-deploy/
