@@ -318,6 +318,30 @@ async function onboardClient(body) {
     Item: item
   }));
   
+  // Clean up any claiming placeholder records for this task
+  if (clickup_task_id) {
+    try {
+      const claimingRecords = await docClient.send(new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: 'clickup_task_id = :taskId AND #status = :claiming',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':taskId': clickup_task_id, ':claiming': 'claiming' }
+      }));
+      
+      // Delete all claiming placeholders for this task
+      for (const record of claimingRecords.Items || []) {
+        await docClient.send(new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { client_id: record.client_id }
+        }));
+        console.log(`Cleaned up claiming placeholder: ${record.client_id}`);
+      }
+    } catch (cleanupError) {
+      console.warn('Failed to cleanup claiming placeholders:', cleanupError);
+      // Non-fatal - continue with success response
+    }
+  }
+  
   return response(201, {
     message: 'Client onboarded successfully',
     client_id,  // Return the generated client_id
@@ -369,6 +393,31 @@ async function updateClient(clientId, body) {
     ExpressionAttributeValues: expressionAttributeValues,
     ReturnValues: 'ALL_NEW'
   }));
+  
+  // Clean up any claiming placeholder records for this task
+  const clickup_task_id = body.clickup_task_id || result.Attributes?.clickup_task_id;
+  if (clickup_task_id) {
+    try {
+      const claimingRecords = await docClient.send(new ScanCommand({
+        TableName: TABLE_NAME,
+        FilterExpression: 'clickup_task_id = :taskId AND #status = :claiming',
+        ExpressionAttributeNames: { '#status': 'status' },
+        ExpressionAttributeValues: { ':taskId': clickup_task_id, ':claiming': 'claiming' }
+      }));
+      
+      // Delete all claiming placeholders for this task
+      for (const record of claimingRecords.Items || []) {
+        await docClient.send(new DeleteCommand({
+          TableName: TABLE_NAME,
+          Key: { client_id: record.client_id }
+        }));
+        console.log(`Cleaned up claiming placeholder: ${record.client_id}`);
+      }
+    } catch (cleanupError) {
+      console.warn('Failed to cleanup claiming placeholders:', cleanupError);
+      // Non-fatal - continue with success response
+    }
+  }
   
   return response(200, {
     message: 'Client updated successfully',

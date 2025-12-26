@@ -218,6 +218,13 @@ resource "aws_iam_role_policy" "signature_lambda_policy" {
           "secretsmanager:GetSecretValue"
         ]
         Resource = "arn:aws:secretsmanager:${var.aws_region}:*:secret:n8n/clients/*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem"
+        ]
+        Resource = aws_dynamodb_table.clients.arn
       }
     ]
   })
@@ -244,7 +251,8 @@ resource "aws_lambda_function" "signature_automation" {
 
   environment {
     variables = {
-      NODE_ENV = var.environment
+      NODE_ENV       = var.environment
+      DYNAMODB_TABLE = aws_dynamodb_table.clients.name
     }
   }
 

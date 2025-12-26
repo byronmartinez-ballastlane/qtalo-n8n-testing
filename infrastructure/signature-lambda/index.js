@@ -3,12 +3,16 @@
  * 
  * This Lambda automates updating email signatures in Reply.io UI.
  * 
- * NEW: Supports fetching credentials from AWS Secrets Manager using client_id
+ * Data Sources:
+ * - AWS Secrets Manager: Sensitive credentials (reply_io_user, reply_io_password, API keys)
+ * - DynamoDB: Configuration data (expected_domains, client_name, status)
+ * 
  * LEGACY: Also supports direct replyioEmail/replyioPassword for backward compatibility
  * 
  * Based on the original replyio-signature-automation Lambda with:
  * - AWS Secrets Manager integration for secure credential retrieval
- * - client_id parameter to identify which client's credentials to use
+ * - DynamoDB integration for client configuration (expected_domains)
+ * - client_id parameter to identify which client's data to use
  * - Backward compatibility with direct credential passing
  */
 
@@ -17,13 +21,49 @@ const puppeteer = require('puppeteer-core');
 const https = require('https');
 const http = require('http');
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
 
 const REGION = process.env.AWS_REGION || 'us-east-1';
+const TABLE_NAME = process.env.DYNAMODB_TABLE || 'qtalo-n8n-clients-prod';
 const secretsClient = new SecretsManagerClient({ region: REGION });
+const dynamoClient = new DynamoDBClient({ region: REGION });
+const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch client credentials AND expected_domains from AWS Secrets Manager
+// Fetch client config (expected_domains) from DynamoDB
+async function getClientConfig(clientId) {
+  try {
+    console.log(`Fetching client config from DynamoDB: ${clientId}`);
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLE_NAME,
+      Key: { client_id: clientId }
+    }));
+    
+    if (!result.Item) {
+      throw new Error(`Client not found in DynamoDB: ${clientId}`);
+    }
+    
+    const expectedDomains = result.Item.expected_domains || [];
+    if (expectedDomains.length === 0) {
+      console.error(`❌ CRITICAL: No expected_domains configured for client ${clientId}. This is required for multi-tenancy security.`);
+    } else {
+      console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
+    }
+    
+    return {
+      expectedDomains,
+      clientName: result.Item.client_name,
+      status: result.Item.status
+    };
+  } catch (error) {
+    console.error(`❌ Failed to fetch client config from DynamoDB:`, error.message);
+    throw new Error(`Failed to fetch client config: ${clientId}. Error: ${error.message}`);
+  }
+}
+
+// Fetch client credentials from AWS Secrets Manager (sensitive data only)
 async function getClientCredentials(clientId) {
   const secretName = `n8n/clients/${clientId}`;
   
@@ -36,19 +76,9 @@ async function getClientCredentials(clientId) {
     const credentials = JSON.parse(result.SecretString);
     console.log(`✅ Retrieved credentials for client: ${clientId}`);
     
-    // MULTI-TENANCY: expected_domains is REQUIRED for domain validation
-    const expectedDomains = credentials.expected_domains || [];
-    if (expectedDomains.length === 0) {
-      console.error(`❌ CRITICAL: No expected_domains configured for client ${clientId}. This is required for multi-tenancy security.`);
-      // Don't throw here - let validateAccountDomains handle the block
-    } else {
-      console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
-    }
-    
     return {
       replyioEmail: credentials.reply_io_user,
-      replyioPassword: credentials.reply_io_password,
-      expectedDomains: expectedDomains
+      replyioPassword: credentials.reply_io_password
     };
   } catch (error) {
     console.error(`❌ Failed to fetch credentials for client ${clientId}:`, error.message);
@@ -185,6 +215,79 @@ async function sendWebhook(webhookUrl, data) {
   });
 }
 
+// MULTI-TENANCY: Verify expected domains exist in Reply.io Email Accounts page
+async function verifyDomainsExistInReplyio(page, expectedDomains) {
+  console.log('🔍 Verifying expected domains exist in Reply.io...');
+  console.log(`   Expected domains: [${expectedDomains.join(', ')}]`);
+  
+  // Wait for domain list to load
+  await wait(2000);
+  
+  // Extract domains from the Email Accounts page
+  const foundDomains = await page.evaluate(() => {
+    const domains = [];
+    
+    // Look for domain elements in the Email Accounts list
+    // The page shows domains like "gocareerangel.co", "n8ntesting.com" etc.
+    const domainElements = document.querySelectorAll('[class*="domain"], [data-domain], a[href*="domain"]');
+    domainElements.forEach(el => {
+      const text = el.textContent?.trim().toLowerCase();
+      if (text && text.includes('.') && !text.includes(' ')) {
+        domains.push(text);
+      }
+    });
+    
+    // Also look for text that looks like domains in table rows or list items
+    const allText = document.body.innerText;
+    const domainRegex = /([a-z0-9][-a-z0-9]*\.)+[a-z]{2,}/gi;
+    const matches = allText.match(domainRegex) || [];
+    matches.forEach(match => {
+      const domain = match.toLowerCase();
+      // Filter out common non-domain matches
+      if (!domain.includes('reply.io') && 
+          !domain.includes('google.com') &&
+          !domain.includes('cloudflare') &&
+          !domains.includes(domain)) {
+        domains.push(domain);
+      }
+    });
+    
+    return [...new Set(domains)]; // Unique domains
+  });
+  
+  console.log(`   Found domains in Reply.io: [${foundDomains.join(', ')}]`);
+  
+  // Check which expected domains exist
+  const normalizedExpected = expectedDomains.map(d => d.toLowerCase().trim());
+  const existingDomains = [];
+  const missingDomains = [];
+  
+  for (const expected of normalizedExpected) {
+    // Check if domain exists (exact match or as suffix)
+    const found = foundDomains.some(found => 
+      found === expected || found.endsWith('.' + expected)
+    );
+    
+    if (found) {
+      existingDomains.push(expected);
+    } else {
+      missingDomains.push(expected);
+    }
+  }
+  
+  return {
+    success: missingDomains.length === 0,
+    existingDomains,
+    missingDomains,
+    foundDomains,
+    message: missingDomains.length === 0 
+      ? `All expected domains found in Reply.io: [${existingDomains.join(', ')}]`
+      : `DOMAIN NOT FOUND: The following domains do not exist in Reply.io yet: [${missingDomains.join(', ')}]. ` +
+        `Please run Phase 1 (Import & Hygiene) first to create mailboxes for these domains. ` +
+        `Available domains: [${foundDomains.join(', ')}]`
+  };
+}
+
 exports.handler = async (event, context) => {
   let browser = null;
   
@@ -210,22 +313,26 @@ exports.handler = async (event, context) => {
       async: asyncMode,
       webhookUrl: webhookUrl ? 'provided' : 'not provided',
       dry_run: dryRun || false,
-      expected_domains: expectedDomains.length > 0 ? expectedDomains : 'from secrets'
+      expected_domains: expectedDomains.length > 0 ? expectedDomains : 'from DynamoDB'
     });
     
-    // If client_id is provided, fetch credentials from Secrets Manager
+    // If client_id is provided, fetch config from DynamoDB and credentials from Secrets Manager
     if (client_id && (!replyioEmail || !replyioPassword)) {
-      console.log(`Fetching credentials from AWS Secrets Manager for client: ${client_id}`);
+      console.log(`Fetching config and credentials for client: ${client_id}`);
       try {
+        // Fetch expected_domains from DynamoDB (config data)
+        const clientConfig = await getClientConfig(client_id);
+        
+        // Get expected_domains from DynamoDB if not provided in request
+        if (expectedDomains.length === 0 && clientConfig.expectedDomains) {
+          expectedDomains = clientConfig.expectedDomains;
+          console.log(`📋 Using expected_domains from DynamoDB: [${expectedDomains.join(', ')}]`);
+        }
+        
+        // Fetch credentials from Secrets Manager (sensitive data)
         const credentials = await getClientCredentials(client_id);
         replyioEmail = credentials.replyioEmail;
         replyioPassword = credentials.replyioPassword;
-        
-        // Get expected_domains from secrets if not provided in request
-        if (expectedDomains.length === 0 && credentials.expectedDomains) {
-          expectedDomains = credentials.expectedDomains;
-          console.log(`📋 Using expected_domains from Secrets Manager: [${expectedDomains.join(', ')}]`);
-        }
         
         if (!replyioEmail || !replyioPassword) {
           return {
@@ -239,14 +346,14 @@ exports.handler = async (event, context) => {
           };
         }
         console.log(`✅ Retrieved Reply.io UI credentials for client: ${client_id}`);
-      } catch (secretsError) {
+      } catch (fetchError) {
         return {
           statusCode: 400,
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            error: 'Failed to fetch credentials from Secrets Manager',
+            error: 'Failed to fetch client config or credentials',
             client_id,
-            message: secretsError.message
+            message: fetchError.message
           })
         };
       }
@@ -406,7 +513,7 @@ exports.handler = async (event, context) => {
       console.log('Note: API Gateway may timeout (503) but Lambda continues processing');
       
       try {
-        const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts);
+        const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains);
         
         // Add rejected accounts to result for transparency
         const enhancedResult = {
@@ -465,7 +572,7 @@ exports.handler = async (event, context) => {
 
     // Synchronous processing (original behavior) - also use validated accounts
     console.log('Starting synchronous processing...');
-    const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts);
+    const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains);
     
     // Add domain validation info to sync result
     const enhancedSyncResult = {
@@ -498,15 +605,16 @@ exports.handler = async (event, context) => {
 };
 
 // ============================================================
-// ORIGINAL processSignatures FUNCTION (UNCHANGED)
-// All the sophisticated Puppeteer automation logic below
+// ORIGINAL processSignatures FUNCTION (UPDATED)
+// Now includes domain verification before processing
 // ============================================================
 
-async function processSignatures(replyioEmail, replyioPassword, accounts) {
+async function processSignatures(replyioEmail, replyioPassword, accounts, expectedDomains = []) {
   let browser = null;
   
   try {
     console.log(`Processing ${accounts.length} accounts...`);
+    console.log(`Expected domains: [${expectedDomains.join(', ')}]`);
 
     browser = await puppeteer.launch({
       args: [
@@ -792,6 +900,31 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     
     // Now we should be on the email accounts page
     console.log('Current URL:', page.url());
+    
+    // ============================================================
+    // MULTI-TENANCY: Verify expected domains exist before processing
+    // ============================================================
+    if (expectedDomains && expectedDomains.length > 0) {
+      console.log('🔒 Verifying expected domains exist in Reply.io Email Accounts...');
+      const domainVerification = await verifyDomainsExistInReplyio(page, expectedDomains);
+      
+      if (!domainVerification.success) {
+        console.error(`❌ Domain verification failed: ${domainVerification.message}`);
+        await browser.close();
+        return {
+          error: 'DOMAIN_NOT_FOUND',
+          message: domainVerification.message,
+          expected_domains: expectedDomains,
+          missing_domains: domainVerification.missingDomains,
+          found_domains: domainVerification.foundDomains,
+          hint: 'Run Phase 1 (Import & Hygiene) first to create mailboxes for the expected domains, ' +
+                'or update expected_domains in the client configuration to match available domains.'
+        };
+      }
+      console.log(`✅ Domain verification passed: ${domainVerification.message}`);
+    }
+    // ============================================================
+    
     console.log('Processing email accounts...');
 
     const results = [];

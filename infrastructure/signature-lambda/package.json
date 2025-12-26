@@ -1,0 +1,13 @@
+{
+  "name": "replyio-signature-automation",
+  "version": "2.1.0",
+  "description": "Reply.io signature automation with AWS Secrets Manager and DynamoDB integration",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@sparticuz/chromium": "^131.0.0",
+    "puppeteer-core": "^23.5.0"
+  }
+}
