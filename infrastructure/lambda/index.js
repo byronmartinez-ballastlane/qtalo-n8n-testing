@@ -341,7 +341,8 @@ async function updateClient(clientId, body) {
   const expressionAttributeValues = {};
   
   // Build update expression dynamically
-  const allowedFields = ['client_name', 'clickup_space_id', 'clickup_task_id', 'template_version', 'status', 'workflow_ids'];
+  // MULTI-TENANCY: expected_domains is critical for domain validation security
+  const allowedFields = ['client_name', 'clickup_space_id', 'clickup_task_id', 'template_version', 'status', 'workflow_ids', 'expected_domains'];
   
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
