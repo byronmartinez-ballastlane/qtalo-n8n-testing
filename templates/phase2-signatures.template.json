@@ -181,14 +181,52 @@
     },
     {
       "parameters": {
-        "jsCode": "// Upload CSV to ClickUp using credentials\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id || $('Start').first().json.task_id;\nconst fileBuffer = Buffer.from(csvContent, 'utf8');\n\ntry {\n  // Use httpRequestWithAuthentication to leverage n8n credentials\n  const response = await this.helpers.httpRequestWithAuthentication.call(this, 'httpHeaderAuth', {\n    method: 'POST',\n    url: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: 'phase2_signatures.csv',\n          contentType: 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: true,\n      attachment_id: response.id,\n      attachment_url: response.url,\n      status: 'CSV uploaded successfully'\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: false,\n      error: error.message,\n      error_details: error.toString()\n    }\n  }];\n}"
+        "jsCode": "// Prepare CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id || $('Start').first().json.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase2_signatures.csv'\n    }\n  }\n}];"
       },
-      "id": "upload-csv-clickup",
-      "name": "Upload CSV to ClickUp",
+      "id": "prepare-csv-binary",
+      "name": "Prepare CSV Binary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         2400,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/attachment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "attachment",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "upload-csv-clickup",
+      "name": "Upload CSV to ClickUp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2520,
         300
       ],
       "credentials": {
@@ -483,6 +521,17 @@
       ]
     },
     "Create CSV Report": {
+      "main": [
+        [
+          {
+            "node": "Prepare CSV Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CSV Binary": {
       "main": [
         [
           {
