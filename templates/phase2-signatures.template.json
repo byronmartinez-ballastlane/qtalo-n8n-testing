@@ -181,7 +181,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Upload CSV to ClickUp using this.helpers.request (same as Phase 1)\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id || $('Start').first().json.task_id;\nconst fileBuffer = Buffer.from(csvContent, 'utf8');\n\ntry {\n  const response = await this.helpers.request({\n    method: 'POST',\n    uri: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    headers: {\n      'Authorization': HARDCODED_CLICKUP_API_KEY\n    },\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: 'phase2_signatures.csv',\n          contentType: 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: true,\n      attachment_id: response.id,\n      attachment_url: response.url,\n      status: 'CSV uploaded successfully'\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: false,\n      error: error.message,\n      error_details: error.toString()\n    }\n  }];\n}"
+        "jsCode": "// Upload CSV to ClickUp using credentials\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id || $('Start').first().json.task_id;\nconst fileBuffer = Buffer.from(csvContent, 'utf8');\n\ntry {\n  // Use httpRequestWithAuthentication to leverage n8n credentials\n  const response = await this.helpers.httpRequestWithAuthentication.call(this, 'httpHeaderAuth', {\n    method: 'POST',\n    url: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: 'phase2_signatures.csv',\n          contentType: 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: true,\n      attachment_id: response.id,\n      attachment_url: response.url,\n      status: 'CSV uploaded successfully'\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: false,\n      error: error.message,\n      error_details: error.toString()\n    }\n  }];\n}"
       },
       "id": "upload-csv-clickup",
       "name": "Upload CSV to ClickUp",
@@ -191,6 +191,12 @@
         2400,
         300
       ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      },
       "continueOnFail": true
     },
     {
