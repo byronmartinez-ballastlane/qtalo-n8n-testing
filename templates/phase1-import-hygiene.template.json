@@ -586,6 +586,119 @@
         300
       ],
       "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv_report || 'No data';\nconst taskId = $('Start').first().json.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv_report,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase1_import_hygiene.csv'\n    }\n  }\n}];"
+      },
+      "id": "prepare-csv-binary",
+      "name": "Prepare CSV Binary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/attachment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "attachment",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "upload-csv-clickup",
+      "name": "Upload CSV to ClickUp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2220,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Generate Phase 1 completion comment\n// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare CSV Binary').first().json;\nconst summary = data.summary;\n\nconst comment = `✅ **Phase 1: Import & Hygiene Complete**\n\nMailboxes processed: ${summary.total}\n- Created: ${summary.created}\n- Updated: ${summary.updated}\n- Skipped: ${summary.skipped}\n- Failed: ${summary.failed}\n- Limits Applied: ${summary.limitsApplied}\n- Success rate: ${summary.successRate}\n\n${summary.failed > 0 ? '⚠️ Some mailboxes failed to process. See attached CSV for details.\\n\\n' : ''}📎 Report attached: phase1_import_hygiene.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+      },
+      "id": "prepare-comment",
+      "name": "Prepare Comment",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "comment_text",
+              "value": "={{ $json.comment }}"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "post-comment-clickup",
+      "name": "Post Comment to ClickUp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2660,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      },
+      "continueOnFail": true
     }
   ],
   "connections": {
@@ -875,6 +988,50 @@
         [
           {
             "node": "Create CSV Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CSV Report": {
+      "main": [
+        [
+          {
+            "node": "Prepare CSV Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare CSV Binary": {
+      "main": [
+        [
+          {
+            "node": "Upload CSV to ClickUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload CSV to ClickUp": {
+      "main": [
+        [
+          {
+            "node": "Prepare Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Comment": {
+      "main": [
+        [
+          {
+            "node": "Post Comment to ClickUp",
             "type": "main",
             "index": 0
           }
