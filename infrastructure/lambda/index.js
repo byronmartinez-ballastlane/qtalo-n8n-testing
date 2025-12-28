@@ -532,6 +532,20 @@ async function updateCredentials(clientId, body) {
   const secretName = `n8n/clients/${clientId}`;
   
   try {
+    // Get client name from DynamoDB for description
+    let clientName = clientId;
+    try {
+      const clientRecord = await docClient.send(new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { client_id: clientId }
+      }));
+      if (clientRecord.Item && clientRecord.Item.client_name) {
+        clientName = clientRecord.Item.client_name;
+      }
+    } catch (err) {
+      console.log('Could not fetch client name, using clientId:', err.message);
+    }
+    
     // Try to get existing credentials first
     let existingCredentials = {};
     try {
@@ -569,7 +583,7 @@ async function updateCredentials(clientId, body) {
         await secretsClient.send(new CreateSecretCommand({
           Name: secretName,
           SecretString: JSON.stringify(updatedCredentials),
-          Description: `Credentials for n8n client: ${clientId}`
+          Description: `Credentials for n8n client: ${clientName}`
         }));
       } else {
         throw error;
