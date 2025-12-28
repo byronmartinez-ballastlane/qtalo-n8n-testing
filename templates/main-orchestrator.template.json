@@ -86,32 +86,6 @@
     },
     {
       "parameters": {
-        "method": "PUT",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{CLIENT_ID}}",
-        "authentication": "none",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ expected_domains: $json.expected_domains, reply_workspace_id: $json.reply_workspace_id }) }}",
-        "options": {}
-      },
-      "id": "sync-client-config",
-      "name": "Sync Client Config",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.1,
-      "position": [1010, 300],
-      "continueOnFail": true
-    },
-    {
-      "parameters": {
         "jsCode": "// Check if CSV URL exists before trying to download\nconst config = $input.first().json;\n\nif (!config.csv_attachment_url || config.csv_attachment_url === '') {\n  console.log('⚠️ No CSV attachment found in ClickUp task');\n  \n  // Post warning comment to ClickUp\n  try {\n    await this.helpers.request({\n      method: 'POST',\n      uri: `https://api.clickup.com/api/v2/task/${config.task_id}/comment`,\n      headers: {\n        'Authorization': 'HARDCODED_CLICKUP_API_KEY',\n        'Content-Type': 'application/json'\n      },\n      body: {\n        comment_text: '⚠️ **No Mailbox CSV Found**\\n\\nNo CSV attachment was found in this task. The workflow will proceed using existing mailboxes from Reply.io.\\n\\n**To add a CSV:**\\n1. Attach a file named `sample-mailboxes.csv` to this task\\n2. Re-run the workflow'\n      },\n      json: true\n    });\n    console.log('✅ Posted warning comment to ClickUp');\n  } catch (error) {\n    console.error('❌ Failed to post warning comment:', error.message);\n  }\n  \n  return [{\n    json: {\n      ...config,\n      skip_csv_download: true,\n      csv_download_skipped_reason: 'No CSV attachment URL found'\n    }\n  }];\n}\n\nconsole.log('✅ CSV attachment URL found:', config.csv_attachment_url);\nreturn [{ json: config }];"
       },
       "id": "check-csv-exists",
@@ -375,9 +349,6 @@
       "main": [[{ "node": "Extract Configuration", "type": "main", "index": 0 }]]
     },
     "Extract Configuration": {
-      "main": [[{ "node": "Sync Client Config", "type": "main", "index": 0 }]]
-    },
-    "Sync Client Config": {
       "main": [[{ "node": "Check CSV Exists", "type": "main", "index": 0 }]]
     },
     "Check CSV Exists": {
