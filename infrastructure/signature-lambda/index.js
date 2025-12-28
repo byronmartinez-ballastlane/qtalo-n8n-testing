@@ -32,7 +32,7 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch client config (expected_domains) from DynamoDB
+// Fetch client config (expected_domains, reply_workspace_id) from DynamoDB
 async function getClientConfig(clientId) {
   try {
     console.log(`Fetching client config from DynamoDB: ${clientId}`);
@@ -52,10 +52,18 @@ async function getClientConfig(clientId) {
       console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
     }
     
+    const replyWorkspaceId = result.Item.reply_workspace_id || null;
+    if (replyWorkspaceId) {
+      console.log(`🏢 Reply.io workspace for client ${clientId}: ${replyWorkspaceId}`);
+    } else {
+      console.log(`⚠️ No reply_workspace_id configured for client ${clientId} - will use default workspace`);
+    }
+    
     return {
       expectedDomains,
       clientName: result.Item.client_name,
-      status: result.Item.status
+      status: result.Item.status,
+      replyWorkspaceId
     };
   } catch (error) {
     console.error(`❌ Failed to fetch client config from DynamoDB:`, error.message);
@@ -162,6 +170,162 @@ function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
       ? `${rejectedAccounts.length} accounts rejected by domain validation, ${validAccounts.length} accounts will be processed`
       : `All ${validAccounts.length} accounts passed domain validation`
   };
+}
+
+// ============================================================
+// WORKSPACE SWITCHING: Switch to client's Reply.io workspace
+// ============================================================
+async function switchToWorkspace(page, workspaceName) {
+  if (!workspaceName) {
+    console.log('⚠️ No workspace name provided, skipping workspace switch');
+    return { success: true, skipped: true, message: 'No workspace name provided' };
+  }
+  
+  console.log(`🏢 Switching to workspace: "${workspaceName}"`);
+  
+  try {
+    // Wait for page to be ready
+    await wait(2000);
+    
+    // Look for the workspace selector button (contains "Client:" text)
+    const workspaceButtonSelectors = [
+      'button[class*="workspace"]',
+      'button[class*="team"]',
+      'div[class*="workspace-selector"]',
+      'button:has-text("Client:")',
+      '[data-testid*="workspace"]',
+      '[data-testid*="team"]'
+    ];
+    
+    let workspaceButton = null;
+    
+    // First try to find by looking for elements containing "Client:" text
+    workspaceButton = await page.evaluateHandle(() => {
+      // Look for buttons or clickable elements with "Client:" text
+      const elements = Array.from(document.querySelectorAll('button, [role="button"], a, div[class*="button"]'));
+      const clientBtn = elements.find(el => 
+        el.textContent && 
+        el.textContent.includes('Client:') &&
+        el.offsetParent !== null
+      );
+      return clientBtn;
+    });
+    
+    if (workspaceButton && await workspaceButton.evaluate(el => el !== null)) {
+      workspaceButton = workspaceButton.asElement();
+    } else {
+      workspaceButton = null;
+    }
+    
+    // If not found, try the predefined selectors
+    if (!workspaceButton) {
+      for (const selector of workspaceButtonSelectors) {
+        try {
+          workspaceButton = await page.$(selector);
+          if (workspaceButton) {
+            const isVisible = await workspaceButton.evaluate(el => el.offsetParent !== null);
+            if (isVisible) {
+              console.log(`Found workspace button with selector: ${selector}`);
+              break;
+            }
+          }
+        } catch (e) {
+          // Continue to next selector
+        }
+        workspaceButton = null;
+      }
+    }
+    
+    if (!workspaceButton) {
+      // Take screenshot for debugging
+      const screenshot = await page.screenshot({ encoding: 'base64' });
+      console.log('📸 Screenshot taken for workspace switch debugging');
+      console.log(`⚠️ Could not find workspace selector button. Current URL: ${page.url()}`);
+      return { 
+        success: false, 
+        error: 'Could not find workspace selector button',
+        screenshot: screenshot.substring(0, 100) + '...'
+      };
+    }
+    
+    console.log('🖱️ Clicking workspace selector button...');
+    await workspaceButton.click();
+    await wait(1500);
+    
+    // Wait for dropdown/menu to appear
+    // Look for workspace items in the dropdown
+    const workspaceFound = await page.evaluate((targetName) => {
+      // Look for elements in the dropdown that might be workspace options
+      const dropdownItems = Array.from(document.querySelectorAll(
+        '[role="menuitem"], [role="option"], li, div[class*="menu-item"], div[class*="dropdown-item"], a[href*="SwitchTeam"]'
+      ));
+      
+      console.log(`Found ${dropdownItems.length} dropdown items`);
+      
+      for (const item of dropdownItems) {
+        const text = item.textContent?.trim();
+        // Match by name (exact or partial match)
+        if (text && (text === targetName || text.includes(targetName) || targetName.includes(text))) {
+          console.log(`Found matching workspace: "${text}"`);
+          item.click();
+          return { found: true, clickedText: text };
+        }
+      }
+      
+      // Also look for links with workspace name
+      const links = Array.from(document.querySelectorAll('a'));
+      for (const link of links) {
+        const text = link.textContent?.trim();
+        if (text && (text === targetName || text.includes(targetName))) {
+          console.log(`Found matching workspace link: "${text}"`);
+          link.click();
+          return { found: true, clickedText: text };
+        }
+      }
+      
+      return { found: false, availableItems: dropdownItems.slice(0, 10).map(i => i.textContent?.trim()).filter(Boolean) };
+    }, workspaceName);
+    
+    if (!workspaceFound.found) {
+      console.log(`❌ Workspace "${workspaceName}" not found in dropdown`);
+      console.log(`   Available workspaces: ${JSON.stringify(workspaceFound.availableItems)}`);
+      
+      // Click elsewhere to close dropdown
+      await page.keyboard.press('Escape');
+      
+      return {
+        success: false,
+        error: `Workspace "${workspaceName}" not found`,
+        availableWorkspaces: workspaceFound.availableItems
+      };
+    }
+    
+    console.log(`✅ Clicked on workspace: "${workspaceFound.clickedText}"`);
+    
+    // Wait for navigation after workspace switch
+    await Promise.race([
+      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }),
+      wait(5000) // Fallback timeout
+    ]).catch(() => {
+      console.log('Navigation timeout after workspace switch, continuing...');
+    });
+    
+    await wait(2000);
+    console.log(`🏢 Workspace switched successfully. Current URL: ${page.url()}`);
+    
+    return { 
+      success: true, 
+      workspace: workspaceFound.clickedText,
+      message: `Switched to workspace: ${workspaceFound.clickedText}`
+    };
+    
+  } catch (error) {
+    console.error(`❌ Error switching workspace:`, error.message);
+    return { 
+      success: false, 
+      error: error.message 
+    };
+  }
 }
 
 // Helper to send webhook notification via GET with query parameters
@@ -305,6 +469,9 @@ exports.handler = async (event, context) => {
     // MULTI-TENANCY: Expected domains for domain validation (from secrets or body)
     let expectedDomains = body.expected_domains || [];
     
+    // WORKSPACE SWITCHING: Reply.io workspace name for switching (from DynamoDB or body)
+    let replyWorkspaceId = body.reply_workspace_id || null;
+    
     console.log('Parsed parameters:', { 
       client_id: client_id || 'not provided',
       replyioEmail: replyioEmail ? 'direct (legacy)' : 'from secrets',
@@ -313,7 +480,8 @@ exports.handler = async (event, context) => {
       async: asyncMode,
       webhookUrl: webhookUrl ? 'provided' : 'not provided',
       dry_run: dryRun || false,
-      expected_domains: expectedDomains.length > 0 ? expectedDomains : 'from DynamoDB'
+      expected_domains: expectedDomains.length > 0 ? expectedDomains : 'from DynamoDB',
+      reply_workspace_id: replyWorkspaceId || 'from DynamoDB'
     });
     
     // If client_id is provided, fetch config from DynamoDB and credentials from Secrets Manager
@@ -327,6 +495,12 @@ exports.handler = async (event, context) => {
         if (expectedDomains.length === 0 && clientConfig.expectedDomains) {
           expectedDomains = clientConfig.expectedDomains;
           console.log(`📋 Using expected_domains from DynamoDB: [${expectedDomains.join(', ')}]`);
+        }
+        
+        // Get reply_workspace_id from DynamoDB if not provided in request
+        if (!replyWorkspaceId && clientConfig.replyWorkspaceId) {
+          replyWorkspaceId = clientConfig.replyWorkspaceId;
+          console.log(`🏢 Using reply_workspace_id from DynamoDB: ${replyWorkspaceId}`);
         }
         
         // Fetch credentials from Secrets Manager (sensitive data)
@@ -513,7 +687,7 @@ exports.handler = async (event, context) => {
       console.log('Note: API Gateway may timeout (503) but Lambda continues processing');
       
       try {
-        const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains);
+        const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains, replyWorkspaceId);
         
         // Add rejected accounts to result for transparency
         const enhancedResult = {
@@ -572,7 +746,7 @@ exports.handler = async (event, context) => {
 
     // Synchronous processing (original behavior) - also use validated accounts
     console.log('Starting synchronous processing...');
-    const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains);
+    const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains, replyWorkspaceId);
     
     // Add domain validation info to sync result
     const enhancedSyncResult = {
@@ -607,14 +781,18 @@ exports.handler = async (event, context) => {
 // ============================================================
 // ORIGINAL processSignatures FUNCTION (UPDATED)
 // Now includes domain verification before processing
+// Now includes workspace switching for multi-tenancy
 // ============================================================
 
-async function processSignatures(replyioEmail, replyioPassword, accounts, expectedDomains = []) {
+async function processSignatures(replyioEmail, replyioPassword, accounts, expectedDomains = [], replyWorkspaceId = null) {
   let browser = null;
   
   try {
     console.log(`Processing ${accounts.length} accounts...`);
     console.log(`Expected domains: [${expectedDomains.join(', ')}]`);
+    if (replyWorkspaceId) {
+      console.log(`🏢 Target workspace: ${replyWorkspaceId}`);
+    }
 
     browser = await puppeteer.launch({
       args: [
@@ -709,6 +887,28 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     
     if (!isLoginPage) {
       console.log('✅ Already on email accounts page or authenticated area!');
+      
+      // ============================================================
+      // WORKSPACE SWITCHING: Switch to client's workspace if specified
+      // ============================================================
+      if (replyWorkspaceId) {
+        console.log(`🏢 Already authenticated - switching to workspace: ${replyWorkspaceId}`);
+        const workspaceResult = await switchToWorkspace(page, replyWorkspaceId);
+        
+        if (!workspaceResult.success && !workspaceResult.skipped) {
+          console.error(`❌ Failed to switch to workspace: ${workspaceResult.error}`);
+          console.log('⚠️ Continuing with current workspace...');
+        } else if (workspaceResult.success && !workspaceResult.skipped) {
+          console.log(`✅ Successfully switched to workspace: ${workspaceResult.workspace}`);
+          // Navigate back to email accounts after workspace switch
+          await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
+            waitUntil: 'networkidle0',
+            timeout: 60000 
+          });
+          await wait(3000);
+        }
+      }
+      
       // Continue to email account processing
     } else {
       console.log('🔐 On login page, attempting to authenticate...');
@@ -889,6 +1089,22 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     ]);
     
     console.log('Login successful, navigated to:', page.url());
+    
+    // ============================================================
+    // WORKSPACE SWITCHING: Switch to client's workspace if specified
+    // ============================================================
+    if (replyWorkspaceId) {
+      console.log(`🏢 Attempting to switch to workspace: ${replyWorkspaceId}`);
+      const workspaceResult = await switchToWorkspace(page, replyWorkspaceId);
+      
+      if (!workspaceResult.success && !workspaceResult.skipped) {
+        console.error(`❌ Failed to switch to workspace: ${workspaceResult.error}`);
+        // Continue anyway - maybe they want to work in current workspace
+        console.log('⚠️ Continuing with current workspace...');
+      } else if (workspaceResult.success && !workspaceResult.skipped) {
+        console.log(`✅ Successfully switched to workspace: ${workspaceResult.workspace}`);
+      }
+    }
     
     // Navigate to email accounts page after login
     await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 

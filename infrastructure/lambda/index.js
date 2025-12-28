@@ -305,6 +305,7 @@ async function onboardClient(body) {
     client_name,
     clickup_space_id: clickup_space_id || client_id,
     clickup_task_id: clickup_task_id || null,  // For task→client mapping
+    reply_workspace_id: reply_workspace_id || null,  // Reply.io workspace name for workspace switching
     secrets_arn: secretArn,
     template_version: '1.0.0',
     status: 'pending_deployment',  // Will be 'active' after workflows deployed
@@ -366,7 +367,8 @@ async function updateClient(clientId, body) {
   
   // Build update expression dynamically
   // MULTI-TENANCY: expected_domains is critical for domain validation security
-  const allowedFields = ['client_name', 'clickup_space_id', 'clickup_task_id', 'template_version', 'status', 'workflow_ids', 'expected_domains'];
+  // reply_workspace_id: Reply.io workspace name for workspace switching in signature Lambda
+  const allowedFields = ['client_name', 'clickup_space_id', 'clickup_task_id', 'template_version', 'status', 'workflow_ids', 'expected_domains', 'reply_workspace_id'];
   
   for (const field of allowedFields) {
     if (body[field] !== undefined) {
