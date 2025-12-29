@@ -272,7 +272,7 @@ resource "aws_lambda_function" "signature_automation" {
     ignore_changes = [
       s3_bucket,
       s3_key,
-      source_code_hash
+      # source_code_hash
     ]
   }
 }

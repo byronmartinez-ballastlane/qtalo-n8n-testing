@@ -20,6 +20,32 @@ const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Get the Chromium executable path
+ * First checks for local bin/ directory (bundled chromium), then falls back to Lambda layer
+ */
+async function getChromiumExecutablePath() {
+  // Check for local chromium binary first (bundled in deployment)
+  const localChromiumPath = path.join(__dirname, 'node_modules', '@sparticuz', 'chromium', 'bin');
+  
+  if (fs.existsSync(localChromiumPath)) {
+    console.log('📦 Using bundled Chromium from local node_modules');
+    return await chromium.executablePath();
+  }
+  
+  // Fall back to Lambda layer
+  const layerPath = '/opt/nodejs/node_modules/@sparticuz/chromium/bin';
+  if (fs.existsSync(layerPath)) {
+    console.log('📦 Using Chromium from Lambda layer');
+    // Point chromium to the layer path
+    process.env.CHROMIUM_PATH = '/opt/nodejs/node_modules/@sparticuz/chromium';
+  }
+  
+  return await chromium.executablePath();
+}
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
@@ -187,136 +213,148 @@ async function switchToWorkspace(page, workspaceName) {
     // Wait for page to be ready
     await wait(2000);
     
-    // Look for the workspace selector button (contains "Client:" text)
-    const workspaceButtonSelectors = [
-      'button[class*="workspace"]',
-      'button[class*="team"]',
-      'div[class*="workspace-selector"]',
-      'button:has-text("Client:")',
-      '[data-testid*="workspace"]',
-      '[data-testid*="team"]'
-    ];
-    
+    // Step 1: Find and click the workspace trigger button to open the dropdown
     let workspaceButton = null;
     
-    // First try to find by looking for elements containing "Client:" text
-    workspaceButton = await page.evaluateHandle(() => {
-      // Look for buttons or clickable elements with "Client:" text
-      const elements = Array.from(document.querySelectorAll('button, [role="button"], a, div[class*="button"]'));
-      const clientBtn = elements.find(el => 
-        el.textContent && 
-        el.textContent.includes('Client:') &&
-        el.offsetParent !== null
-      );
-      return clientBtn;
-    });
+    // Primary method: Find avatar with aria-label containing "Client:"
+    workspaceButton = await page.$('[data-test-id="avatar"][aria-label^="Client:"]');
     
-    if (workspaceButton && await workspaceButton.evaluate(el => el !== null)) {
-      workspaceButton = workspaceButton.asElement();
-    } else {
-      workspaceButton = null;
+    if (!workspaceButton) {
+      workspaceButton = await page.$('.MuiAvatar-root[aria-label^="Client:"]');
     }
     
-    // If not found, try the predefined selectors
     if (!workspaceButton) {
-      for (const selector of workspaceButtonSelectors) {
-        try {
-          workspaceButton = await page.$(selector);
-          if (workspaceButton) {
-            const isVisible = await workspaceButton.evaluate(el => el.offsetParent !== null);
-            if (isVisible) {
-              console.log(`Found workspace button with selector: ${selector}`);
-              break;
-            }
-          }
-        } catch (e) {
-          // Continue to next selector
+      // Look for any avatar that might be the workspace selector
+      const avatars = await page.$$('[data-test-id="avatar"]');
+      for (const avatar of avatars) {
+        const ariaLabel = await avatar.evaluate(el => el.getAttribute('aria-label'));
+        if (ariaLabel && ariaLabel.includes('Client:')) {
+          workspaceButton = avatar;
+          console.log(`Found workspace avatar with aria-label: ${ariaLabel}`);
+          break;
         }
-        workspaceButton = null;
       }
     }
     
     if (!workspaceButton) {
-      // Take screenshot for debugging
-      const screenshot = await page.screenshot({ encoding: 'base64' });
-      console.log('📸 Screenshot taken for workspace switch debugging');
       console.log(`⚠️ Could not find workspace selector button. Current URL: ${page.url()}`);
       return { 
         success: false, 
-        error: 'Could not find workspace selector button',
-        screenshot: screenshot.substring(0, 100) + '...'
+        error: 'Could not find workspace selector button'
       };
     }
     
-    console.log('🖱️ Clicking workspace selector button...');
+    console.log('🖱️ Clicking workspace selector button to open dropdown...');
     await workspaceButton.click();
     await wait(1500);
     
-    // Wait for dropdown/menu to appear
-    // Look for workspace items in the dropdown
-    const workspaceFound = await page.evaluate((targetName) => {
-      // Look for elements in the dropdown that might be workspace options
-      const dropdownItems = Array.from(document.querySelectorAll(
-        '[role="menuitem"], [role="option"], li, div[class*="menu-item"], div[class*="dropdown-item"], a[href*="SwitchTeam"]'
-      ));
-      
-      console.log(`Found ${dropdownItems.length} dropdown items`);
-      
-      for (const item of dropdownItems) {
-        const text = item.textContent?.trim();
-        // Match by name (exact or partial match)
-        if (text && (text === targetName || text.includes(targetName) || targetName.includes(text))) {
-          console.log(`Found matching workspace: "${text}"`);
-          item.click();
-          return { found: true, clickedText: text };
-        }
-      }
-      
-      // Also look for links with workspace name
-      const links = Array.from(document.querySelectorAll('a'));
-      for (const link of links) {
-        const text = link.textContent?.trim();
-        if (text && (text === targetName || text.includes(targetName))) {
-          console.log(`Found matching workspace link: "${text}"`);
-          link.click();
-          return { found: true, clickedText: text };
-        }
-      }
-      
-      return { found: false, availableItems: dropdownItems.slice(0, 10).map(i => i.textContent?.trim()).filter(Boolean) };
-    }, workspaceName);
+    // Step 2: Extract the workspace list and find the exact match by aria-label
+    // The HTML structure is:
+    // <a href="/Home/SwitchTeam?teamId=XXXXX">
+    //   <li>
+    //     <p aria-label="WorkspaceName">WorkspaceName</p>
+    //   </li>
+    // </a>
     
-    if (!workspaceFound.found) {
-      console.log(`❌ Workspace "${workspaceName}" not found in dropdown`);
-      console.log(`   Available workspaces: ${JSON.stringify(workspaceFound.availableItems)}`);
+    // First, extract all workspace data from the page
+    const extractedWorkspaces = await page.evaluate(() => {
+      // Find all workspace links
+      const switchLinks = Array.from(document.querySelectorAll('a[href*="SwitchTeam?teamId="]'));
       
-      // Click elsewhere to close dropdown
-      await page.keyboard.press('Escape');
+      // Deduplicate by teamId
+      const seenTeamIds = new Set();
+      const workspaces = [];
       
-      return {
-        success: false,
-        error: `Workspace "${workspaceName}" not found`,
-        availableWorkspaces: workspaceFound.availableItems
+      for (const link of switchLinks) {
+        // Extract teamId from href
+        const href = link.getAttribute('href') || '';
+        const teamIdMatch = href.match(/teamId=(\d+)/);
+        const teamId = teamIdMatch ? teamIdMatch[1] : null;
+        
+        // Skip if we've already seen this teamId
+        if (teamId && seenTeamIds.has(teamId)) continue;
+        if (teamId) seenTeamIds.add(teamId);
+        
+        // Get workspace name from the <p> element with aria-label inside the link
+        const pElement = link.querySelector('p[aria-label]');
+        const ariaLabel = pElement?.getAttribute('aria-label') || '';
+        const textContent = pElement?.textContent?.trim() || link.textContent?.trim() || '';
+        
+        workspaces.push({
+          teamId: teamId,
+          ariaLabel: ariaLabel,
+          textContent: textContent,
+          href: href
+        });
+      }
+      
+      return workspaces;
+    });
+    
+    // Log the extracted workspaces in Lambda context (visible in CloudWatch)
+    console.log(`📋 Found ${extractedWorkspaces.length} unique workspaces in dropdown:`);
+    for (const ws of extractedWorkspaces) {
+      console.log(`   📌 aria-label="${ws.ariaLabel}" | text="${ws.textContent}" | teamId=${ws.teamId}`);
+    }
+    
+    // Normalize for EXACT comparison (case-insensitive, trimmed)
+    const normalize = (str) => (str || '').trim().toLowerCase();
+    const targetNormalized = normalize(workspaceName);
+    
+    console.log(`🔍 Looking for EXACT match: "${workspaceName}" (normalized: "${targetNormalized}")`);
+    
+    // EXACT MATCH ONLY - using aria-label which is the most reliable
+    // This ensures "QTalo" only matches "QTalo", NOT "QQTalo" or any partial match
+    const exactMatch = extractedWorkspaces.find(w => normalize(w.ariaLabel) === targetNormalized);
+    
+    let workspaceResult;
+    if (exactMatch) {
+      console.log(`✅ EXACT MATCH FOUND: aria-label="${exactMatch.ariaLabel}" | teamId=${exactMatch.teamId}`);
+      workspaceResult = {
+        found: true,
+        teamId: exactMatch.teamId,
+        name: exactMatch.ariaLabel,
+        href: exactMatch.href
+      };
+    } else {
+      console.log(`❌ No exact match for "${workspaceName}" - available workspaces:`);
+      extractedWorkspaces.forEach(w => console.log(`   - "${w.ariaLabel}" (teamId: ${w.teamId})`));
+      workspaceResult = {
+        found: false,
+        availableWorkspaces: extractedWorkspaces.map(w => ({ name: w.ariaLabel, teamId: w.teamId }))
       };
     }
     
-    console.log(`✅ Clicked on workspace: "${workspaceFound.clickedText}"`);
+    // Close the dropdown by pressing Escape
+    await page.keyboard.press('Escape');
+    await wait(500);
     
-    // Wait for navigation after workspace switch
-    await Promise.race([
-      page.waitForNavigation({ waitUntil: 'networkidle0', timeout: 30000 }),
-      wait(5000) // Fallback timeout
-    ]).catch(() => {
-      console.log('Navigation timeout after workspace switch, continuing...');
-    });
+    if (!workspaceResult.found) {
+      console.log(`❌ Workspace "${workspaceName}" not found (exact match required)`);
+      console.log(`   Available workspaces: ${JSON.stringify(workspaceResult.availableWorkspaces)}`);
+      
+      return {
+        success: false,
+        error: `Workspace "${workspaceName}" not found (exact match required)`,
+        availableWorkspaces: workspaceResult.availableWorkspaces
+      };
+    }
     
+    // Step 3: Navigate directly to the SwitchTeam URL with the teamId
+    const switchUrl = `https://run.reply.io/Home/SwitchTeam?teamId=${workspaceResult.teamId}`;
+    console.log(`🔗 Navigating directly to workspace: ${switchUrl}`);
+    
+    await page.goto(switchUrl, { waitUntil: 'networkidle0', timeout: 60000 });
     await wait(2000);
-    console.log(`🏢 Workspace switched successfully. Current URL: ${page.url()}`);
+    
+    console.log(`✅ Successfully switched to workspace: "${workspaceResult.name}" (teamId: ${workspaceResult.teamId})`);
+    console.log(`🏢 Current URL: ${page.url()}`);
     
     return { 
       success: true, 
-      workspace: workspaceFound.clickedText,
-      message: `Switched to workspace: ${workspaceFound.clickedText}`
+      workspace: workspaceResult.name,
+      teamId: workspaceResult.teamId,
+      message: `Switched to workspace: ${workspaceResult.name}`
     };
     
   } catch (error) {
@@ -794,6 +832,10 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
       console.log(`🏢 Target workspace: ${replyWorkspaceId}`);
     }
 
+    // Get chromium executable path (local bin first, then layer fallback)
+    const execPath = await getChromiumExecutablePath();
+    console.log(`🌐 Chromium executable path: ${execPath}`);
+
     browser = await puppeteer.launch({
       args: [
         ...chromium.args,
@@ -809,7 +851,7 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
         '--disable-features=VizDisplayCompositor'
       ],
       defaultViewport: { width: 1920, height: 1080 },
-      executablePath: await chromium.executablePath(),
+      executablePath: execPath,
       headless: chromium.headless,
       ignoreHTTPSErrors: true,
     });
