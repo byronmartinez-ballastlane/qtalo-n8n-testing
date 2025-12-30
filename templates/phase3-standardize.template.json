@@ -328,17 +328,120 @@
     },
     {
       "parameters": {
-        "jsCode": "// Clone sequence to Reply.io\nconst campaignData = $input.first().json;\nconst originalData = $('Split Sequences to Clone').item.json;\nconst existingSequences = originalData.existing_sequences || {};\n\n// Check if we got errors\nif (campaignData.error || !campaignData.id) {\n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: 'unknown',\n      status: 'failed',\n      steps_cloned: 0,\n      error: campaignData.error?.message || 'Failed to fetch source sequence'\n    }\n  }];\n}\n\nconst sourceName = campaignData.name || 'Unnamed Sequence';\nconst clonedName = `${sourceName} (Clone)`;\nconst forceOverwrite = originalData.force_overwrite;\n\n// Check if sequence already exists\nconst existing = existingSequences[clonedName.toLowerCase()];\nif (existing && !forceOverwrite) {\n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: sourceName,\n      status: 'skipped',\n      steps_cloned: 0,\n      error: 'already exists (force_overwrite=false)'\n    }\n  }];\n}\n\n// Get steps from v2 API response\nconst steps = campaignData.steps || [];\n\n// Prepare campaign creation payload (simplified for v2 API)\nconst campaignPayload = {\n  name: clonedName,\n  emailAccount: campaignData.emailAccount,\n  settings: campaignData.settings || {},\n  steps: steps.map((step, index) => ({\n    number: index + 1,\n    inMinutesCount: step.inMinutesCount || 0,\n    templates: step.templates || []\n  }))\n};\n\ntry {\n  // Clone the campaign\n  const response = await this.helpers.request({\n    method: 'POST',\n    uri: 'https://api.reply.io/v2/campaigns',\n    headers: {\n      'x-api-key': HARDCODED_REPLY_API_KEY,\n      'Content-Type': 'application/json'\n    },\n    body: campaignPayload,\n    json: true\n  });\n  \n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: sourceName,\n      cloned_id: response.id,\n      cloned_name: clonedName,\n      status: 'created',\n      steps_cloned: steps.length,\n      error: ''\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: sourceName,\n      status: 'failed',\n      steps_cloned: 0,\n      error: error.message || error.toString()\n    }\n  }];\n}"
+        "jsCode": "// Prepare clone payload - check for errors/skip conditions first\nconst campaignData = $input.first().json;\nconst originalData = $('Split Sequences to Clone').item.json;\nconst existingSequences = originalData.existing_sequences || {};\n\n// Check if we got errors fetching source sequence\nif (campaignData.error || !campaignData.id) {\n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: 'unknown',\n      status: 'failed',\n      steps_cloned: 0,\n      error: campaignData.error?.message || 'Failed to fetch source sequence',\n      _skipApiCall: true\n    }\n  }];\n}\n\nconst sourceName = campaignData.name || 'Unnamed Sequence';\nconst clonedName = `${sourceName} (Clone)`;\nconst forceOverwrite = originalData.force_overwrite;\n\n// Check if sequence already exists\nconst existing = existingSequences[clonedName.toLowerCase()];\nif (existing && !forceOverwrite) {\n  return [{\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      sequence_name: sourceName,\n      status: 'skipped',\n      steps_cloned: 0,\n      error: 'already exists (force_overwrite=false)',\n      _skipApiCall: true\n    }\n  }];\n}\n\n// Get steps from v2 API response\nconst steps = campaignData.steps || [];\n\n// Prepare campaign creation payload\nreturn [{\n  json: {\n    source_sequence_id: originalData.source_sequence_id,\n    sequence_name: sourceName,\n    cloned_name: clonedName,\n    steps_count: steps.length,\n    _skipApiCall: false,\n    _payload: {\n      name: clonedName,\n      emailAccount: campaignData.emailAccount,\n      settings: campaignData.settings || {},\n      steps: steps.map((step, index) => ({\n        number: index + 1,\n        inMinutesCount: step.inMinutesCount || 0,\n        templates: step.templates || []\n      }))\n    }\n  }\n}];"
       },
-      "id": "clone-sequence",
-      "name": "Clone Sequence",
+      "id": "prepare-clone-payload",
+      "name": "Prepare Clone Payload",
       "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3540,
+        300
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "skip-check",
+              "leftValue": "={{ $json._skipApiCall }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-skip-clone",
+      "name": "Should Clone?",
+      "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
         3760,
         300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.reply.io/v2/campaigns",
+        "authentication": "genericCredentialType",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json._payload) }}",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "create-cloned-campaign",
+      "name": "Create Cloned Campaign",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3980,
+        200
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process clone API result\nconst prepData = $('Prepare Clone Payload').first().json;\nconst apiResponse = $input.first().json;\n\n// Check for API errors\nif (apiResponse.error || !apiResponse.id) {\n  return [{\n    json: {\n      source_sequence_id: prepData.source_sequence_id,\n      sequence_name: prepData.sequence_name,\n      status: 'failed',\n      steps_cloned: 0,\n      error: apiResponse.error?.message || apiResponse.message || 'API call failed'\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    source_sequence_id: prepData.source_sequence_id,\n    sequence_name: prepData.sequence_name,\n    cloned_id: apiResponse.id,\n    cloned_name: prepData.cloned_name,\n    status: 'created',\n    steps_cloned: prepData.steps_count,\n    error: ''\n  }\n}];"
+      },
+      "id": "process-clone-result",
+      "name": "Process Clone Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4200,
+        200
       ],
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Pass through skipped/failed items unchanged\nreturn $input.all();"
+      },
+      "id": "pass-skipped-items",
+      "name": "Pass Skipped Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4200,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "mergeByFields": {
+          "values": []
+        },
+        "options": {}
+      },
+      "id": "merge-clone-results",
+      "name": "Merge Clone Results",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        4420,
+        300
+      ]
     },
     {
       "parameters": {
@@ -605,14 +708,76 @@
       "main": [
         [
           {
-            "node": "Clone Sequence",
+            "node": "Prepare Clone Payload",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Clone Sequence": {
+    "Prepare Clone Payload": {
+      "main": [
+        [
+          {
+            "node": "Should Clone?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Clone?": {
+      "main": [
+        [
+          {
+            "node": "Create Cloned Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pass Skipped Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Cloned Campaign": {
+      "main": [
+        [
+          {
+            "node": "Process Clone Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Clone Result": {
+      "main": [
+        [
+          {
+            "node": "Merge Clone Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pass Skipped Items": {
+      "main": [
+        [
+          {
+            "node": "Merge Clone Results",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Clone Results": {
       "main": [
         [
           {
