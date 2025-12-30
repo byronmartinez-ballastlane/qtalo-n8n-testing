@@ -38,15 +38,8 @@ variable "n8n_api_url" {
   default     = "https://qtalospace.app.n8n.cloud"
 }
 
-variable "n8n_api_key" {
-  description = "n8n API key for credential management"
+variable "n8n_jwt_credential_name" {
+  description = "n8n credential name for the JWT secret (webhook finds by name)"
   type        = string
-  sensitive   = true
-  default     = ""  # Set via TF_VAR_n8n_api_key or terraform.tfvars
-}
-
-variable "n8n_jwt_credential_id" {
-  description = "n8n credential ID for the JWT secret"
-  type        = string
-  default     = ""  # Set after creating the credential in n8n
+  default     = "AWS API Gateway JWT"
 }

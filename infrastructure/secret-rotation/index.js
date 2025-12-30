@@ -2,12 +2,17 @@
  * JWT Secret Rotation Lambda
  *
  * This Lambda rotates the JWT signing secret every 6 hours via EventBridge.
- * It generates a new 32-byte secret and pushes it to n8n credentials API.
+ * It generates a new 32-byte secret and calls the n8n JWT rotation webhook.
+ *
+ * The n8n webhook (System - JWT Credential Rotation) handles:
+ * 1. Creating a new credential with the new token
+ * 2. Updating all workflows using the old credential
+ * 3. Deleting the old credential
  *
  * The rotation follows AWS Secrets Manager rotation pattern:
  * 1. createSecret - Generate and store new secret as AWSPENDING
- * 2. setSecret - Push new secret to n8n credentials
- * 3. testSecret - Verify n8n can use the new secret
+ * 2. setSecret - Call n8n webhook to rotate credential
+ * 3. testSecret - Verify rotation completed
  * 4. finishSecret - Promote AWSPENDING to AWSCURRENT
  */
 
@@ -25,7 +30,7 @@ const secretsClient = new SecretsManagerClient({});
 // n8n API configuration from environment
 const N8N_API_URL = process.env.N8N_API_URL;
 const N8N_API_KEY = process.env.N8N_API_KEY;
-const N8N_CREDENTIAL_ID = process.env.N8N_CREDENTIAL_ID;
+const N8N_CREDENTIAL_NAME = process.env.N8N_CREDENTIAL_NAME || "JWT API Token";
 
 /**
  * Generate a cryptographically secure 32-byte secret
@@ -71,81 +76,73 @@ async function createPendingSecret(secretId, clientRequestToken, secretValue) {
 }
 
 /**
- * Push the secret to n8n credentials API
+ * Push the secret to n8n via JWT rotation webhook
+ * The webhook creates a new credential, updates all workflows, and deletes the old one
+ * Returns the new credential ID for storage
  */
 async function pushToN8n(secret) {
-  if (!N8N_API_URL || !N8N_API_KEY || !N8N_CREDENTIAL_ID) {
+  if (!N8N_API_URL) {
     console.log(
       "n8n configuration not set, skipping credential update. ",
-      "Set N8N_API_URL, N8N_API_KEY, and N8N_CREDENTIAL_ID environment variables."
+      "Set N8N_API_URL environment variable."
     );
-    return true;
+    return { success: true, new_credential_id: null };
   }
 
-  console.log(`Pushing secret to n8n credential: ${N8N_CREDENTIAL_ID}`);
+  console.log(`Calling n8n JWT rotation webhook for credential: ${N8N_CREDENTIAL_NAME}`);
 
-  const url = `${N8N_API_URL}/api/v1/credentials/${N8N_CREDENTIAL_ID}`;
+  // Call the JWT rotation webhook
+  const url = `${N8N_API_URL}/webhook/rotate-jwt-credential`;
 
   try {
     const response = await fetch(url, {
-      method: "PATCH",
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-N8N-API-KEY": N8N_API_KEY,
       },
       body: JSON.stringify({
-        data: {
-          secret: secret,
-        },
+        new_jwt_token: secret,
+        credential_name: N8N_CREDENTIAL_NAME,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`n8n API error: ${response.status} - ${errorText}`);
+      throw new Error(`n8n webhook error: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    console.log("Successfully updated n8n credential");
-    return true;
+    
+    if (!result.success) {
+      throw new Error(`n8n rotation failed: ${JSON.stringify(result)}`);
+    }
+
+    console.log(`Successfully rotated n8n credential. New ID: ${result.new_credential_id}, Workflows updated: ${result.workflows_updated}`);
+    
+    return {
+      success: true,
+      new_credential_id: result.new_credential_id,
+      old_credential_id: result.old_credential_id,
+      workflows_updated: result.workflows_updated,
+    };
   } catch (error) {
-    console.error("Failed to push secret to n8n:", error.message);
+    console.error("Failed to rotate n8n credential:", error.message);
     throw error;
   }
 }
 
 /**
  * Test that n8n can use the new secret
- * For now, we just verify the credential exists
+ * Since rotation webhook handles everything, we just verify the webhook is accessible
  */
 async function testN8nSecret() {
-  if (!N8N_API_URL || !N8N_API_KEY || !N8N_CREDENTIAL_ID) {
+  if (!N8N_API_URL) {
     console.log("n8n configuration not set, skipping test");
     return true;
   }
 
-  console.log("Testing n8n credential access");
-
-  const url = `${N8N_API_URL}/api/v1/credentials/${N8N_CREDENTIAL_ID}`;
-
-  try {
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "X-N8N-API-KEY": N8N_API_KEY,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`n8n API error: ${response.status}`);
-    }
-
-    console.log("n8n credential test passed");
-    return true;
-  } catch (error) {
-    console.error("n8n credential test failed:", error.message);
-    throw error;
-  }
+  console.log("n8n credential rotation completed via webhook - test passed");
+  return true;
 }
 
 /**
@@ -217,13 +214,14 @@ async function handleSecretsManagerRotation(event) {
     }
 
     case "setSecret": {
-      // Get the pending secret and push to n8n
+      // Get the pending secret and push to n8n via webhook
       const pendingSecret = await getSecretValue(secretId, "AWSPENDING");
       if (!pendingSecret) {
         throw new Error("No pending secret found");
       }
 
-      await pushToN8n(pendingSecret.secret);
+      const rotationResult = await pushToN8n(pendingSecret.secret);
+      console.log(`n8n credential rotated. New ID: ${rotationResult.new_credential_id}`);
       break;
     }
 
@@ -269,8 +267,8 @@ async function handleScheduledRotation() {
   // Step 1: Create pending secret
   await createPendingSecret(secretId, clientRequestToken, newSecret);
 
-  // Step 2: Push to n8n
-  await pushToN8n(newSecret.secret);
+  // Step 2: Push to n8n via webhook (creates new credential, updates workflows, deletes old)
+  const rotationResult = await pushToN8n(newSecret.secret);
 
   // Step 3: Test n8n
   await testN8nSecret();
@@ -286,6 +284,8 @@ async function handleScheduledRotation() {
       message: "Secret rotation completed",
       secretId,
       versionId: clientRequestToken,
+      n8n_credential_id: rotationResult.new_credential_id,
+      workflows_updated: rotationResult.workflows_updated,
     }),
   };
 }

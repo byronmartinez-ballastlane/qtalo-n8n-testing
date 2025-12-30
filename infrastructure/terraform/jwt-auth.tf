@@ -250,10 +250,9 @@ resource "aws_lambda_function" "secret_rotation" {
 
   environment {
     variables = {
-      JWT_SECRET_NAME   = aws_secretsmanager_secret.jwt_signing_secret.name
-      N8N_API_URL       = var.n8n_api_url
-      N8N_API_KEY       = var.n8n_api_key
-      N8N_CREDENTIAL_ID = var.n8n_jwt_credential_id
+      JWT_SECRET_NAME     = aws_secretsmanager_secret.jwt_signing_secret.name
+      N8N_API_URL         = var.n8n_api_url
+      N8N_CREDENTIAL_NAME = var.n8n_jwt_credential_name
     }
   }
 

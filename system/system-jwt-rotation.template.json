@@ -1,0 +1,286 @@
+{
+  "name": "System - JWT Credential Rotation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rotate-jwt-credential",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-rotation",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [260, 300],
+      "webhookId": "jwt-rotation-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Validate rotation request from Lambda\nconst body = $input.first().json.body;\n\nconst newJwtToken = body.new_jwt_token;\nconst credentialName = body.credential_name;\n\nif (!newJwtToken || !credentialName) {\n  throw new Error('Missing required: new_jwt_token and credential_name');\n}\n\nconsole.log(`JWT Rotation requested for credential: ${credentialName}`);\n\nreturn [{\n  json: {\n    new_jwt_token: newJwtToken,\n    credential_name: credentialName\n  }\n}];"
+      },
+      "id": "validate-request",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "resource": "workflow",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "id": "list-workflows",
+      "name": "List All Workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [700, 300],
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Find the credential ID by scanning workflows for a credential with the target name\n// Also identify all workflows that use this credential\nconst requestData = $('Validate Request').first().json;\nconst workflows = $input.all().map(i => i.json);\nconst targetName = requestData.credential_name;\n\nlet foundCredId = null;\nlet foundCredType = null;\nconst workflowsUsingCred = [];\n\nfor (const wf of workflows) {\n  if (!wf.nodes) continue;\n  \n  for (const node of wf.nodes) {\n    if (!node.credentials) continue;\n    \n    for (const [credType, credInfo] of Object.entries(node.credentials)) {\n      if (credInfo.name === targetName) {\n        foundCredId = credInfo.id;\n        foundCredType = credType;\n        \n        // Add workflow ID to list if not already there\n        if (!workflowsUsingCred.find(w => w === wf.id)) {\n          workflowsUsingCred.push(wf.id);\n        }\n      }\n    }\n  }\n}\n\nif (!foundCredId) {\n  throw new Error(`Credential not found in any workflow: ${targetName}`);\n}\n\n// Prepare credential data based on type\nlet credentialData;\nif (foundCredType === 'jwtAuth') {\n  credentialData = { keyType: 'passphrase', secret: requestData.new_jwt_token, privateKey: '', publicKey: '', algorithm: 'HS256' };\n} else {\n  credentialData = { name: 'Authorization', value: 'Bearer ' + requestData.new_jwt_token };\n}\n\nconsole.log(`Found credential ID: ${foundCredId} (${targetName}) of type ${foundCredType}`);\nconsole.log(`Found ${workflowsUsingCred.length} workflows using this credential: ${workflowsUsingCred.join(', ')}`);\n\nreturn [{\n  json: {\n    old_credential_id: foundCredId,\n    old_credential_name: targetName,\n    credential_type: foundCredType,\n    credential_data_json: JSON.stringify(credentialData),\n    new_jwt_token: requestData.new_jwt_token,\n    workflow_ids: workflowsUsingCred,\n    workflows_count: workflowsUsingCred.length\n  }\n}];"
+      },
+      "id": "find-credential-from-workflows",
+      "name": "Find Credential From Workflows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [920, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://qtalospace.app.n8n.cloud/api/v1/credentials",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.old_credential_name, type: $json.credential_type, data: JSON.parse($json.credential_data_json) }) }}",
+        "options": {}
+      },
+      "id": "create-credential",
+      "name": "Create New Credential",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1140, 300],
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store credential IDs and output one item per workflow to update\nconst oldData = $('Find Credential From Workflows').first().json;\nconst newCred = $input.first().json;\n\nconsole.log(`Created new credential ID: ${newCred.id}`);\n\n// Output one item per workflow for the loop\nconst items = oldData.workflow_ids.map(wfId => ({\n  json: {\n    old_credential_id: oldData.old_credential_id,\n    old_credential_name: oldData.old_credential_name,\n    credential_type: oldData.credential_type,\n    new_credential_id: newCred.id,\n    new_credential_name: newCred.name,\n    workflow_id: wfId,\n    total_workflows: oldData.workflow_ids.length\n  }\n}));\n\nreturn items;"
+      },
+      "id": "store-cred-ids",
+      "name": "Prepare Workflow Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 300]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-workflows",
+      "name": "Loop Over Workflows",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [1580, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.workflow_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "options": {}
+      },
+      "id": "get-workflow",
+      "name": "Get Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1800, 400],
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform workflow: update credential references and keep only allowed fields\nconst batchData = $('Loop Over Workflows').first().json;\nconst workflow = $input.first().json;\n\nconst oldCredId = batchData.old_credential_id;\nconst newCredId = batchData.new_credential_id;\nconst newCredName = batchData.new_credential_name;\n\n// Update credential references in nodes\nconst updatedNodes = workflow.nodes.map(node => {\n  if (!node.credentials) return node;\n  \n  for (const credType of Object.keys(node.credentials)) {\n    if (node.credentials[credType].id === oldCredId) {\n      node.credentials[credType] = { id: newCredId, name: newCredName };\n    }\n  }\n  return node;\n});\n\n// Keep only fields allowed by PUT API\nconst updatePayload = {\n  name: workflow.name,\n  nodes: updatedNodes,\n  connections: workflow.connections,\n  settings: workflow.settings,\n  staticData: workflow.staticData\n};\n\nconsole.log(`Transformed workflow ${workflow.id} (${workflow.name}) for update`);\n\nreturn [{\n  json: {\n    workflow_id: workflow.id,\n    workflow_name: workflow.name,\n    update_payload: updatePayload,\n    old_credential_id: oldCredId,\n    new_credential_id: newCredId,\n    total_workflows: batchData.total_workflows\n  }\n}];"
+      },
+      "id": "transform-workflow",
+      "name": "Transform Workflow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2020, 400]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.workflow_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.update_payload) }}",
+        "options": {}
+      },
+      "id": "put-workflow",
+      "name": "Update Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [2240, 400],
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Record update result and pass back to loop\nconst transformData = $('Transform Workflow').first().json;\nconst putResult = $input.first().json;\n\nconst success = putResult.id !== undefined;\n\nconsole.log(`Workflow ${transformData.workflow_id} update: ${success ? 'SUCCESS' : 'FAILED'}`);\n\nreturn [{\n  json: {\n    workflow_id: transformData.workflow_id,\n    workflow_name: transformData.workflow_name,\n    status: success ? 'updated' : 'error',\n    error: success ? null : (putResult.message || 'Unknown error'),\n    old_credential_id: transformData.old_credential_id,\n    new_credential_id: transformData.new_credential_id,\n    total_workflows: transformData.total_workflows\n  }\n}];"
+      },
+      "id": "record-result",
+      "name": "Record Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2460, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Aggregate all update results\nconst results = $input.all().map(i => i.json);\n\nconst updated = results.filter(r => r.status === 'updated').length;\nconst errored = results.filter(r => r.status === 'error').length;\n\n// Get credential IDs from first result\nconst firstResult = results[0] || {};\n\nconsole.log(`Workflow updates complete: ${updated} updated, ${errored} errors`);\n\nreturn [{\n  json: {\n    old_credential_id: firstResult.old_credential_id,\n    new_credential_id: firstResult.new_credential_id,\n    workflows_updated: updated,\n    workflows_errored: errored,\n    results: results\n  }\n}];"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1800, 200]
+    },
+    {
+      "parameters": {
+        "resource": "credential",
+        "operation": "delete",
+        "credentialId": "={{ $json.old_credential_id }}"
+      },
+      "id": "delete-old-cred",
+      "name": "Delete Old Credential",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [2020, 200],
+      "continueOnFail": true,
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Final response\nconst updateData = $('Aggregate Results').first().json;\nconst deleteResult = $input.first().json;\n\nreturn [{\n  json: {\n    success: true,\n    old_credential_id: updateData.old_credential_id,\n    old_credential_deleted: !deleteResult.error,\n    new_credential_id: updateData.new_credential_id,\n    workflows_updated: updateData.workflows_updated,\n    workflows_errored: updateData.workflows_errored,\n    details: updateData.results\n  }\n}];"
+      },
+      "id": "final-response",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2240, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2460, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{"node": "Validate Request", "type": "main", "index": 0}]]
+    },
+    "Validate Request": {
+      "main": [[{"node": "List All Workflows", "type": "main", "index": 0}]]
+    },
+    "List All Workflows": {
+      "main": [[{"node": "Find Credential From Workflows", "type": "main", "index": 0}]]
+    },
+    "Find Credential From Workflows": {
+      "main": [[{"node": "Create New Credential", "type": "main", "index": 0}]]
+    },
+    "Create New Credential": {
+      "main": [[{"node": "Prepare Workflow Updates", "type": "main", "index": 0}]]
+    },
+    "Prepare Workflow Updates": {
+      "main": [[{"node": "Loop Over Workflows", "type": "main", "index": 0}]]
+    },
+    "Loop Over Workflows": {
+      "main": [
+        [{"node": "Aggregate Results", "type": "main", "index": 0}],
+        [{"node": "Get Workflow", "type": "main", "index": 0}]
+      ]
+    },
+    "Get Workflow": {
+      "main": [[{"node": "Transform Workflow", "type": "main", "index": 0}]]
+    },
+    "Transform Workflow": {
+      "main": [[{"node": "Update Workflow", "type": "main", "index": 0}]]
+    },
+    "Update Workflow": {
+      "main": [[{"node": "Record Result", "type": "main", "index": 0}]]
+    },
+    "Record Result": {
+      "main": [[{"node": "Loop Over Workflows", "type": "main", "index": 0}]]
+    },
+    "Aggregate Results": {
+      "main": [[{"node": "Delete Old Credential", "type": "main", "index": 0}]]
+    },
+    "Delete Old Credential": {
+      "main": [[{"node": "Prepare Response", "type": "main", "index": 0}]]
+    },
+    "Prepare Response": {
+      "main": [[{"node": "Respond", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
