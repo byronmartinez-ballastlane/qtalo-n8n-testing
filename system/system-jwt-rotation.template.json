@@ -87,13 +87,43 @@
     },
     {
       "parameters": {
-        "jsCode": "// Store credential IDs and output one item per workflow to update\nconst oldData = $('Find Credential From Workflows').first().json;\nconst newCred = $input.first().json;\n\nconsole.log(`Created new credential ID: ${newCred.id}`);\n\n// Output one item per workflow for the loop\nconst items = oldData.workflow_ids.map(wfId => ({\n  json: {\n    old_credential_id: oldData.old_credential_id,\n    old_credential_name: oldData.old_credential_name,\n    credential_type: oldData.credential_type,\n    new_credential_id: newCred.id,\n    new_credential_name: newCred.name,\n    workflow_id: wfId,\n    total_workflows: oldData.workflow_ids.length\n  }\n}));\n\nreturn items;"
+        "method": "GET",
+        "url": "=https://qtalospace.app.n8n.cloud/api/v1/credentials/{{ $json.id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "options": {}
+      },
+      "id": "get-qtalo-project",
+      "name": "Verify Credential Created",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [1360, 300],
+      "credentials": {
+        "n8nApi": {
+          "id": "EaOQcyWDYyvGbbr7",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify credential was created successfully\nconst newCred = $('Create New Credential').first().json;\nconst fetchedCred = $input.first().json;\n\nconsole.log(`New credential ID: ${newCred.id}`);\nconsole.log(`Fetched credential ID: ${fetchedCred.id}`);\nconsole.log(`Credential name: ${fetchedCred.name}`);\nconsole.log(`Credential type: ${fetchedCred.type}`);\n\n// Verify the credential was created and is accessible\nif (!fetchedCred.id) {\n  throw new Error(`Failed to verify credential creation - could not fetch credential ${newCred.id}`);\n}\n\nif (fetchedCred.id !== newCred.id) {\n  throw new Error(`Credential ID mismatch! Expected ${newCred.id}, got ${fetchedCred.id}`);\n}\n\nconsole.log(`Verified: Credential ${newCred.id} (${fetchedCred.name}) created successfully and accessible`);\n\nreturn [{\n  json: {\n    new_credential_id: newCred.id,\n    new_credential_name: fetchedCred.name,\n    credential_type: fetchedCred.type,\n    verified: true\n  }\n}];"
+      },
+      "id": "verify-project",
+      "name": "Verify In QTalo Project",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store credential IDs and output one item per workflow to update\nconst oldData = $('Find Credential From Workflows').first().json;\nconst verifyData = $input.first().json;\n\nconsole.log(`Credential ${verifyData.new_credential_id} verified in project: ${verifyData.project_name}`);\n\n// Output one item per workflow for the loop\nconst items = oldData.workflow_ids.map(wfId => ({\n  json: {\n    old_credential_id: oldData.old_credential_id,\n    old_credential_name: oldData.old_credential_name,\n    credential_type: oldData.credential_type,\n    new_credential_id: verifyData.new_credential_id,\n    new_credential_name: verifyData.new_credential_name,\n    project_id: verifyData.project_id,\n    project_name: verifyData.project_name,\n    workflow_id: wfId,\n    total_workflows: oldData.workflow_ids.length\n  }\n}));\n\nreturn items;"
       },
       "id": "store-cred-ids",
       "name": "Prepare Workflow Updates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1360, 300]
+      "position": [1800, 300]
     },
     {
       "parameters": {
@@ -104,7 +134,7 @@
       "name": "Loop Over Workflows",
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
-      "position": [1580, 300]
+      "position": [2020, 300]
     },
     {
       "parameters": {
@@ -118,7 +148,7 @@
       "name": "Get Workflow",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [1800, 400],
+      "position": [2240, 400],
       "credentials": {
         "n8nApi": {
           "id": "EaOQcyWDYyvGbbr7",
@@ -134,7 +164,7 @@
       "name": "Transform Workflow",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2020, 400]
+      "position": [2460, 400]
     },
     {
       "parameters": {
@@ -160,7 +190,7 @@
       "name": "Update Workflow",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
-      "position": [2240, 400],
+      "position": [2680, 400],
       "credentials": {
         "n8nApi": {
           "id": "EaOQcyWDYyvGbbr7",
@@ -177,7 +207,7 @@
       "name": "Record Result",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2460, 400]
+      "position": [2900, 400]
     },
     {
       "parameters": {
@@ -187,7 +217,7 @@
       "name": "Aggregate Results",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1800, 200]
+      "position": [2240, 200]
     },
     {
       "parameters": {
@@ -199,7 +229,7 @@
       "name": "Delete Old Credential",
       "type": "n8n-nodes-base.n8n",
       "typeVersion": 1,
-      "position": [2020, 200],
+      "position": [2460, 200],
       "continueOnFail": true,
       "credentials": {
         "n8nApi": {
@@ -216,7 +246,7 @@
       "name": "Prepare Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2240, 200]
+      "position": [2680, 200]
     },
     {
       "parameters": {
@@ -230,7 +260,7 @@
       "name": "Respond",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2460, 200]
+      "position": [2900, 200]
     }
   ],
   "connections": {
@@ -247,6 +277,12 @@
       "main": [[{"node": "Create New Credential", "type": "main", "index": 0}]]
     },
     "Create New Credential": {
+      "main": [[{"node": "Verify Credential Created", "type": "main", "index": 0}]]
+    },
+    "Verify Credential Created": {
+      "main": [[{"node": "Verify In QTalo Project", "type": "main", "index": 0}]]
+    },
+    "Verify In QTalo Project": {
       "main": [[{"node": "Prepare Workflow Updates", "type": "main", "index": 0}]]
     },
     "Prepare Workflow Updates": {
