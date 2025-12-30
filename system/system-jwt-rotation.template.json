@@ -70,7 +70,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ name: $json.old_credential_name, type: $json.credential_type, data: JSON.parse($json.credential_data_json) }) }}",
+        "jsonBody": "={{ JSON.stringify({ name: $json.old_credential_name, type: $json.credential_type, data: JSON.parse($json.credential_data_json), projectId: 'BFIDAvXOISVZh7tb' }) }}",
         "options": {}
       },
       "id": "create-credential",
