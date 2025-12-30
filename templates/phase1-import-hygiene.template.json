@@ -699,6 +699,19 @@
         }
       },
       "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Return mailboxes data to orchestrator for Phase 3 sequence assignment\nconst allResults = $('Combine All Results').all();\n\n// Extract successfully created/existing mailboxes with id and email\nconst mailboxes = allResults\n  .map(item => item.json)\n  .filter(m => m.id && m.email && !m.error)\n  .map(m => ({\n    id: m.id,\n    email: m.email,\n    senderName: m.senderName || m.displayName\n  }));\n\nconsole.log(`Returning ${mailboxes.length} mailboxes to orchestrator`);\n\nreturn [{\n  json: {\n    mailboxes,\n    mailbox_count: mailboxes.length\n  }\n}];"
+      },
+      "id": "return-mailboxes",
+      "name": "Return Mailboxes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        300
+      ]
     }
   ],
   "connections": {
@@ -1032,6 +1045,17 @@
         [
           {
             "node": "Post Comment to ClickUp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Comment to ClickUp": {
+      "main": [
+        [
+          {
+            "node": "Return Mailboxes",
             "type": "main",
             "index": 0
           }

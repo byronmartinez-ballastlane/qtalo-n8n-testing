@@ -305,7 +305,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare data to pass to Phase 3\n// Include mailboxes from Phase 1 for sequence assignment\nconst config = $('Extract Configuration').first().json;\nconst phase1Result = $('Execute Phase 1').first().json;\n\n// Extract mailboxes with id and email from Phase 1 results\nconst mailboxes = (phase1Result.results || []).map(m => ({\n  id: m.id || m.mailbox_id,\n  email: m.email || m.emailAddress,\n  senderName: m.senderName || m.sender_name || m.displayName\n})).filter(m => m.id && m.email);\n\nconsole.log(`Passing ${mailboxes.length} mailboxes to Phase 3 for sequence assignment`);\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    custom_fields_spec: config.custom_fields_spec,\n    stages_spec: config.stages_spec,\n    sequence_template_ids: config.sequence_template_ids,\n    force_overwrite: config.force_overwrite,\n    mailboxes: mailboxes\n  }\n}];"
+        "jsCode": "// Prepare data to pass to Phase 3\n// Include mailboxes from Phase 1 for sequence assignment\nconst config = $('Extract Configuration').first().json;\nconst phase1Result = $('Execute Phase 1').first().json;\n\n// Extract mailboxes from Phase 1's Return Mailboxes node output\nconst mailboxes = phase1Result.mailboxes || [];\n\nconsole.log(`Passing ${mailboxes.length} mailboxes to Phase 3 for sequence assignment`);\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    custom_fields_spec: config.custom_fields_spec,\n    stages_spec: config.stages_spec,\n    sequence_template_ids: config.sequence_template_ids,\n    force_overwrite: config.force_overwrite,\n    mailboxes: mailboxes\n  }\n}];"
       },
       "id": "prepare-phase3-data",
       "name": "Prepare Phase 3 Data",
