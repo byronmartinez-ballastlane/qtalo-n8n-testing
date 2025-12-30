@@ -1,11 +1,5 @@
 {
-  "updatedAt": "2025-12-26T16:56:09.232Z",
-  "createdAt": "2025-12-21T14:47:43.559Z",
-  "id": "yMRb0i13knCpzGnF",
   "name": "System - Client Onboarding v2",
-  "description": null,
-  "active": true,
-  "isArchived": false,
   "nodes": [
     {
       "id": "webhook-trigger",
@@ -37,7 +31,20 @@
         "method": "GET",
         "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/by-task/{{ $json.body.task_id }}",
         "authentication": "none",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+            }
+          ]
+        }
       }
     },
     {
@@ -118,7 +125,20 @@
         "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "{ \"status\": \"claiming\" }",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+            }
+          ]
+        }
       }
     },
     {
@@ -258,7 +278,20 @@
         "method": "GET",
         "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
         "authentication": "none",
-        "options": {}
+        "options": {},
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+            }
+          ]
+        }
       },
       "continueOnFail": true
     },
@@ -336,8 +369,12 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
             }
           ]
         },
@@ -364,8 +401,12 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
             }
           ]
         },
@@ -870,8 +911,12 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            },
+            {
+              "name": "x-api-key",
+              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
             }
           ]
         },
@@ -910,6 +955,150 @@
         "responseBody": "={{ $json }}",
         "options": {}
       }
+    },
+    {
+      "id": "jwt-check-task-in-db",
+      "name": "JWT Sign - Task in DynamoDB",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        150,
+        300
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
+    },
+    {
+      "id": "jwt-claim-task",
+      "name": "JWT Sign - Task in DynamoDB",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
+    },
+    {
+      "id": "jwt-check-if-exists",
+      "name": "JWT Sign - If Client Exists",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
+    },
+    {
+      "id": "jwt-create-client-aws",
+      "name": "JWT Sign - Client in AWS",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        1580,
+        300
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
+    },
+    {
+      "id": "jwt-store-credentials-aws",
+      "name": "JWT Sign - Credentials in AWS",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        1800,
+        300
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
+    },
+    {
+      "id": "jwt-update-client-aws",
+      "name": "JWT Sign - Client Status in AWS",
+      "type": "n8n-nodes-base.jwt",
+      "typeVersion": 1,
+      "position": [
+        3120,
+        200
+      ],
+      "parameters": {
+        "operation": "sign",
+        "useJson": true,
+        "payload": "={{ JSON.stringify({ sub: 'n8n-client-onboarding', iss: 'n8n-qtalo', aud: 'qtalo-api-gateway', jti: $execution.id + '-' + $node.name.replace(/\\s/g, '-'), iat: Math.floor(Date.now() / 1000) }) }}",
+        "options": {
+          "expiresIn": 3600
+        }
+      },
+      "credentials": {
+        "jwtAuth": {
+          "id": "GTMIQ9enUC5HkDq6",
+          "name": "AWS API Gateway JWT"
+        }
+      }
     }
   ],
   "connections": {
@@ -917,7 +1106,7 @@
       "main": [
         [
           {
-            "node": "Check Task in DynamoDB",
+            "node": "Jwt Sign   Check Task In Db",
             "type": "main",
             "index": 0
           }
@@ -950,7 +1139,7 @@
       "main": [
         [
           {
-            "node": "Claim Task in DynamoDB",
+            "node": "Jwt Sign   Claim Task",
             "type": "main",
             "index": 0
           }
@@ -1030,7 +1219,7 @@
       "main": [
         [
           {
-            "node": "Check If Client Exists",
+            "node": "Jwt Sign   Check If Exists",
             "type": "main",
             "index": 0
           }
@@ -1063,7 +1252,7 @@
       "main": [
         [
           {
-            "node": "Create Client in AWS",
+            "node": "Jwt Sign   Create Client Aws",
             "type": "main",
             "index": 0
           }
@@ -1092,7 +1281,7 @@
       "main": [
         [
           {
-            "node": "Store Credentials in AWS",
+            "node": "Jwt Sign   Store Credentials Aws",
             "type": "main",
             "index": 0
           },
@@ -1295,7 +1484,7 @@
       "main": [
         [
           {
-            "node": "Update Client Status in AWS",
+            "node": "Jwt Sign   Update Client Aws",
             "type": "main",
             "index": 0
           }
@@ -1323,127 +1512,66 @@
           }
         ]
       ]
+    },
+    "JWT Sign - Task in DynamoDB": {
+      "main": [
+        [
+          {
+            "node": "Claim Task in DynamoDB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT Sign - If Client Exists": {
+      "main": [
+        [
+          {
+            "node": "Check If Client Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT Sign - Client in AWS": {
+      "main": [
+        [
+          {
+            "node": "Create Client in AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT Sign - Credentials in AWS": {
+      "main": [
+        [
+          {
+            "node": "Store Credentials in AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JWT Sign - Client Status in AWS": {
+      "main": [
+        [
+          {
+            "node": "Update Client Status in AWS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "callerPolicy": "workflowsFromSameOwner",
     "availableInMCP": false
-  },
-  "staticData": null,
-  "meta": null,
-  "pinData": null,
-  "versionId": "b488cea9-26be-453c-bda5-94067785087a",
-  "versionCounter": 108,
-  "triggerCount": 1,
-  "shared": [
-    {
-      "updatedAt": "2025-12-21T14:59:07.192Z",
-      "createdAt": "2025-12-21T14:59:07.192Z",
-      "role": "workflow:owner",
-      "workflowId": "yMRb0i13knCpzGnF",
-      "projectId": "BFIDAvXOISVZh7tb",
-      "project": {
-        "updatedAt": "2025-11-20T14:41:38.000Z",
-        "createdAt": "2025-11-20T14:41:32.806Z",
-        "id": "BFIDAvXOISVZh7tb",
-        "name": "QTalo",
-        "type": "team",
-        "icon": {
-          "type": "icon",
-          "value": "layers"
-        },
-        "description": "",
-        "projectRelations": [
-          {
-            "updatedAt": "2025-11-20T14:41:32.808Z",
-            "createdAt": "2025-11-20T14:41:32.808Z",
-            "userId": "cb6d5270-4b28-442b-abaf-52304e0e7e0c",
-            "projectId": "BFIDAvXOISVZh7tb",
-            "user": {
-              "updatedAt": "2025-12-27T05:12:36.000Z",
-              "createdAt": "2025-11-20T14:37:17.770Z",
-              "id": "cb6d5270-4b28-442b-abaf-52304e0e7e0c",
-              "email": "devin@qtalo.com",
-              "firstName": "Devin",
-              "lastName": "Mahoney",
-              "personalizationAnswers": null,
-              "settings": {
-                "userActivated": false
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2025-12-27",
-              "isPending": false
-            }
-          },
-          {
-            "updatedAt": "2025-11-20T14:41:45.880Z",
-            "createdAt": "2025-11-20T14:41:45.880Z",
-            "userId": "006ccda9-eea6-49d4-bc9f-dacf3ba5da1b",
-            "projectId": "BFIDAvXOISVZh7tb",
-            "user": {
-              "updatedAt": "2025-12-19T20:07:30.000Z",
-              "createdAt": "2025-11-20T14:41:10.140Z",
-              "id": "006ccda9-eea6-49d4-bc9f-dacf3ba5da1b",
-              "email": "byron@qtalo.com",
-              "firstName": "Byron",
-              "lastName": "Martinez",
-              "personalizationAnswers": null,
-              "settings": {
-                "firstSuccessfulWorkflowId": "DUCRFH8yYdCKu7lt",
-                "userActivated": true,
-                "userActivatedAt": 1765300323684
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2025-12-19",
-              "isPending": false
-            }
-          },
-          {
-            "updatedAt": "2025-11-20T14:41:47.947Z",
-            "createdAt": "2025-11-20T14:41:47.947Z",
-            "userId": "9f506416-58bd-4402-b811-3e3853811a46",
-            "projectId": "BFIDAvXOISVZh7tb",
-            "user": {
-              "updatedAt": "2025-11-20T17:11:09.086Z",
-              "createdAt": "2025-11-20T14:41:10.140Z",
-              "id": "9f506416-58bd-4402-b811-3e3853811a46",
-              "email": "ivan@qtalo.com",
-              "firstName": "Ivan",
-              "lastName": "Milovidov",
-              "personalizationAnswers": null,
-              "settings": null,
-              "disabled": false,
-              "mfaEnabled": true,
-              "lastActiveAt": "2025-11-20",
-              "isPending": false
-            }
-          },
-          {
-            "updatedAt": "2025-11-20T14:41:49.223Z",
-            "createdAt": "2025-11-20T14:41:49.223Z",
-            "userId": "3fb3db1c-0294-462b-8595-62eccdd72f26",
-            "projectId": "BFIDAvXOISVZh7tb",
-            "user": {
-              "updatedAt": "2025-12-08T16:21:00.000Z",
-              "createdAt": "2025-11-20T14:41:10.140Z",
-              "id": "3fb3db1c-0294-462b-8595-62eccdd72f26",
-              "email": "ty@qtalo.com",
-              "firstName": "Ty",
-              "lastName": "Backhus",
-              "personalizationAnswers": null,
-              "settings": null,
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2025-12-08",
-              "isPending": false
-            }
-          }
-        ]
-      }
-    }
-  ],
-  "tags": []
+  }
 }

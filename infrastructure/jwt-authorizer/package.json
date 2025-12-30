@@ -1,0 +1,15 @@
+{
+  "name": "jwt-authorizer",
+  "version": "1.0.0",
+  "description": "JWT Authorizer Lambda for API Gateway",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.700.0"
+  },
+  "engines": {
+    "node": ">=22.x"
+  }
+}

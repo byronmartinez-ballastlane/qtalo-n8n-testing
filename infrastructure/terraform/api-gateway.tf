@@ -54,10 +54,12 @@ resource "aws_api_gateway_resource" "clients" {
 
 # GET /clients - List all clients
 resource "aws_api_gateway_method" "clients_get" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.clients.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.clients.id
+  http_method      = "GET"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 }
 
 resource "aws_api_gateway_integration" "clients_get" {
@@ -71,10 +73,12 @@ resource "aws_api_gateway_integration" "clients_get" {
 
 # POST /clients - Create new client
 resource "aws_api_gateway_method" "clients_post" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.clients.id
-  http_method   = "POST"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.clients.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 }
 
 resource "aws_api_gateway_integration" "clients_post" {
@@ -125,7 +129,7 @@ resource "aws_api_gateway_integration_response" "clients_options" {
   status_code = aws_api_gateway_method_response.clients_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,POST,PUT,DELETE,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
@@ -143,10 +147,12 @@ resource "aws_api_gateway_resource" "client_id" {
 
 # GET /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_get" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.client_id.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.client_id.id
+  http_method      = "GET"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.clientId" = true
@@ -164,10 +170,12 @@ resource "aws_api_gateway_integration" "client_id_get" {
 
 # PUT /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_put" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.client_id.id
-  http_method   = "PUT"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.client_id.id
+  http_method      = "PUT"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.clientId" = true
@@ -185,10 +193,12 @@ resource "aws_api_gateway_integration" "client_id_put" {
 
 # DELETE /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_delete" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.client_id.id
-  http_method   = "DELETE"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.client_id.id
+  http_method      = "DELETE"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.clientId" = true
@@ -222,10 +232,12 @@ resource "aws_api_gateway_resource" "claim_task_id" {
 
 # PUT /clients/claim/{taskId}
 resource "aws_api_gateway_method" "claim_put" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.claim_task_id.id
-  http_method   = "PUT"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.claim_task_id.id
+  http_method      = "PUT"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.taskId" = true
@@ -280,7 +292,7 @@ resource "aws_api_gateway_integration_response" "claim_options" {
   status_code = aws_api_gateway_method_response.claim_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'PUT,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
@@ -304,10 +316,12 @@ resource "aws_api_gateway_resource" "by_task_id" {
 
 # GET /clients/by-task/{taskId}
 resource "aws_api_gateway_method" "by_task_get" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.by_task_id.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.by_task_id.id
+  http_method      = "GET"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.taskId" = true
@@ -362,7 +376,7 @@ resource "aws_api_gateway_integration_response" "by_task_options" {
   status_code = aws_api_gateway_method_response.by_task_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
@@ -385,10 +399,12 @@ resource "aws_api_gateway_resource" "credentials_client_id" {
 }
 
 resource "aws_api_gateway_method" "credentials_get" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.credentials_client_id.id
-  http_method   = "GET"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.credentials_client_id.id
+  http_method      = "GET"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.clientId" = true
@@ -406,10 +422,12 @@ resource "aws_api_gateway_integration" "credentials_get" {
 
 # PUT /credentials/{clientId} - Update credentials
 resource "aws_api_gateway_method" "credentials_put" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.credentials_client_id.id
-  http_method   = "PUT"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.credentials_client_id.id
+  http_method      = "PUT"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 
   request_parameters = {
     "method.request.path.clientId" = true
@@ -464,7 +482,7 @@ resource "aws_api_gateway_integration_response" "credentials_options" {
   status_code = aws_api_gateway_method_response.credentials_options.status_code
 
   response_parameters = {
-    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key'"
+    "method.response.header.Access-Control-Allow-Headers" = "'Content-Type,X-Api-Key,Authorization'"
     "method.response.header.Access-Control-Allow-Methods" = "'GET,PUT,OPTIONS'"
     "method.response.header.Access-Control-Allow-Origin"  = "'*'"
   }
@@ -481,10 +499,12 @@ resource "aws_api_gateway_resource" "workflows" {
 }
 
 resource "aws_api_gateway_method" "workflows_put" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.workflows.id
-  http_method   = "PUT"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.workflows.id
+  http_method      = "PUT"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 }
 
 resource "aws_api_gateway_integration" "workflows_put" {
@@ -507,10 +527,12 @@ resource "aws_api_gateway_resource" "sync" {
 }
 
 resource "aws_api_gateway_method" "sync_post" {
-  rest_api_id   = aws_api_gateway_rest_api.api.id
-  resource_id   = aws_api_gateway_resource.sync.id
-  http_method   = "POST"
-  authorization = "NONE"
+  rest_api_id      = aws_api_gateway_rest_api.api.id
+  resource_id      = aws_api_gateway_resource.sync.id
+  http_method      = "POST"
+  authorization    = "CUSTOM"
+  authorizer_id    = aws_api_gateway_authorizer.jwt_authorizer.id
+  api_key_required = true
 }
 
 resource "aws_api_gateway_integration" "sync_post" {
@@ -587,6 +609,9 @@ resource "aws_api_gateway_deployment" "api" {
       aws_api_gateway_method.sync_post.id,
       aws_api_gateway_method.claim_put.id,
       aws_api_gateway_method.claim_options.id,
+      # JWT Authentication resources
+      aws_api_gateway_authorizer.jwt_authorizer.id,
+      aws_api_gateway_api_key.n8n_api_key.id,
     ]))
   }
 

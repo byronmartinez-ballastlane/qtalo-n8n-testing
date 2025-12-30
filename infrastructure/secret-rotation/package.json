@@ -1,0 +1,15 @@
+{
+  "name": "secret-rotation",
+  "version": "1.0.0",
+  "description": "JWT Secret Rotation Lambda for n8n",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.700.0"
+  },
+  "engines": {
+    "node": ">=22.x"
+  }
+}
