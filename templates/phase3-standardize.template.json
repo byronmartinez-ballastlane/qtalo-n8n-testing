@@ -457,7 +457,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate CSV report for sequences\nconst data = $input.first().json;\nconst csvData = data.csv_data || [];\n\n// Build CSV\nconst headers = ['Source ID', 'Sequence Name', 'Status', 'Steps Cloned', 'Error'];\nconst rows = csvData.map(row => [\n  row.source_id || '',\n  row.name || '',\n  row.status || '',\n  row.steps || '',\n  row.error || ''\n]);\n\nconst csv = [\n  headers.join(','),\n  ...rows.map(row => row.map(cell => `\"${String(cell).replace(/\"/g, '\"\"')}\"`).join(','))\n].join('\\n');\n\nreturn [{\n  json: {\n    task_id: data.task_id,\n    phase: data.phase,\n    csv: csv,\n    summary: data.summary\n  }\n}];"
+        "jsCode": "// Generate CSV report for sequences with full details\nconst data = $input.first().json;\nconst csvData = data.csv_data || [];\n\n// Build CSV with email, cloned name, sequence ID and URL\nconst headers = ['Email', 'Cloned Name', 'Sequence ID', 'URL', 'Status', 'Steps', 'Error'];\nconst rows = csvData.map(row => {\n  const seqId = row.cloned_id || '';\n  const url = seqId ? `https://app.reply.io/sequences/${seqId}` : '';\n  return [\n    row.mailbox_email || '',\n    row.cloned_name || '',\n    seqId,\n    url,\n    row.status || '',\n    row.steps || '',\n    row.error || ''\n  ];\n});\n\nconst csv = [\n  headers.join(','),\n  ...rows.map(row => row.map(cell => `\"${String(cell).replace(/\"/g, '\"\"')}\"`).join(','))\n].join('\\n');\n\nreturn [{\n  json: {\n    task_id: data.task_id,\n    phase: data.phase,\n    csv: csv,\n    summary: data.summary\n  }\n}];"
       },
       "id": "create-sequences-csv",
       "name": "Create Sequences CSV",
@@ -470,16 +470,60 @@
     },
     {
       "parameters": {
-        "jsCode": "// Upload sequences CSV to ClickUp\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id;\nconst fileBuffer = Buffer.from(csvContent, 'utf8');\n\ntry {\n  const response = await this.helpers.request({\n    method: 'POST',\n    uri: `https://api.clickup.com/api/v2/task/${taskId}/attachment`,\n    headers: {\n      'Authorization': HARDCODED_CLICKUP_API_KEY\n    },\n    formData: {\n      attachment: {\n        value: fileBuffer,\n        options: {\n          filename: 'phase3_sequences.csv',\n          contentType: 'text/csv'\n        }\n      }\n    },\n    json: true\n  });\n  \n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: true,\n      attachment_id: response.id,\n      attachment_url: response.url\n    }\n  }];\n} catch (error) {\n  return [{\n    json: {\n      task_id: taskId,\n      summary: data.summary,\n      upload_success: false,\n      error: error.message\n    }\n  }];\n}"
+        "jsCode": "// Prepare sequences CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase3_sequences.csv'\n    }\n  }\n}];"
       },
-      "id": "upload-sequences-csv",
-      "name": "Upload Sequences CSV",
+      "id": "prepare-sequences-csv-binary",
+      "name": "Prepare Sequences CSV Binary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         4420,
         300
       ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/attachment",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "multipart/form-data"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "attachment",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "upload-sequences-csv",
+      "name": "Upload Sequences CSV",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4640,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{CLICKUP_CREDENTIAL_ID}}",
+          "name": "{{CLICKUP_CREDENTIAL_NAME}}"
+        }
+      },
       "continueOnFail": true
     },
     {
@@ -526,7 +570,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4860,
+        5080,
         300
       ],
       "credentials": {
@@ -799,6 +843,17 @@
       ]
     },
     "Create Sequences CSV": {
+      "main": [
+        [
+          {
+            "node": "Prepare Sequences CSV Binary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Sequences CSV Binary": {
       "main": [
         [
           {
