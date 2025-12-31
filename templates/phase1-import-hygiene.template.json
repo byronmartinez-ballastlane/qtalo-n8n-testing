@@ -14,6 +14,279 @@
     },
     {
       "parameters": {
+        "jsCode": "// Extract sending_schedule from config and prepare for schedule creation\nconst executionData = $input.first().json;\nconst config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;\n\nconst sendingSchedule = config.sending_schedule;\nconst companyName = config.company_name || 'Default';\nconst forceOverwrite = config.force_overwrite || false;\n\n// If no sending_schedule configured, skip schedule creation\nif (!sendingSchedule) {\n  console.log('ℹ️ No sending_schedule configured - skipping schedule creation');\n  return [{ json: { ...config, schedule_skipped: true, schedule_skip_reason: 'No sending_schedule configured' } }];\n}\n\nconsole.log('📅 Sending schedule configuration found:', JSON.stringify(sendingSchedule));\n\n// Parse the schedule config\n// Expected format from ClickUp:\n// {\n//   \"name\": \"Business Hours\",\n//   \"timezone\": \"America/New_York\" or \"Eastern Standard Time\",\n//   \"window\": { \"start\": \"09:00\", \"end\": \"17:00\" },\n//   \"days\": [\"Monday\", \"Tuesday\", \"Wednesday\", \"Thursday\", \"Friday\"],\n//   \"set_as_default\": true\n// }\n\nconst scheduleName = sendingSchedule.name || `${companyName} Schedule`;\nconst timezone = sendingSchedule.timezone || sendingSchedule.tz || 'Eastern Standard Time';\nconst window = sendingSchedule.window || { start: '09:00', end: '17:00' };\nconst activeDays = sendingSchedule.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];\nconst setAsDefault = sendingSchedule.set_as_default !== false; // Default to true\n\n// Parse time strings to hour/minute objects\nfunction parseTime(timeStr) {\n  const [hour, minute] = (timeStr || '00:00').split(':').map(Number);\n  return { hour: hour || 0, minute: minute || 0 };\n}\n\nconst fromTime = parseTime(window.start);\nconst toTime = parseTime(window.end);\n\n// Build mainTimings array for all 7 days\nconst allDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst mainTimings = allDays.map(day => ({\n  weekDay: day,\n  isActive: activeDays.includes(day),\n  timeRanges: [{\n    fromTime: activeDays.includes(day) ? fromTime : { hour: 0, minute: 0 },\n    toTime: activeDays.includes(day) ? toTime : { hour: 24, minute: 0 }\n  }]\n}));\n\nreturn [{\n  json: {\n    ...config,\n    schedule_config: {\n      name: scheduleName,\n      timezoneId: timezone,\n      excludeHolidays: sendingSchedule.excludeHolidays || false,\n      useProspectTimezone: sendingSchedule.useProspectTimezone || true,\n      useFollowUpSchedule: false,\n      mainTimings: mainTimings\n    },\n    schedule_set_as_default: setAsDefault,\n    schedule_force_overwrite: forceOverwrite\n  }\n}];"
+      },
+      "id": "prepare-schedule",
+      "name": "Prepare Schedule Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        460,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.schedule_skipped }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "has-schedule-config",
+      "name": "Has Schedule Config?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        680,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.reply.io/v2/schedules",
+        "authentication": "genericCredentialType",
+        "sendHeaders": false,
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "get-existing-schedules",
+      "name": "Get Existing Schedules",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        900,
+        100
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if schedule with same name already exists\nconst config = $('Prepare Schedule Config').first().json;\nconst existingSchedules = $input.all().map(item => item.json);\nconst scheduleName = config.schedule_config.name;\nconst forceOverwrite = config.schedule_force_overwrite;\n\nconsole.log(`📅 Checking for existing schedule: \"${scheduleName}\"`);\nconsole.log(`📅 Found ${existingSchedules.length} existing schedules`);\n\n// Find schedule with matching name\nconst existingSchedule = existingSchedules.find(s => s.name === scheduleName);\n\nif (existingSchedule && !forceOverwrite) {\n  console.log(`✅ Schedule \"${scheduleName}\" already exists (ID: ${existingSchedule.id}) - skipping creation`);\n  return [{\n    json: {\n      ...config,\n      schedule_action: 'skip',\n      schedule_id: existingSchedule.id,\n      schedule_message: `Schedule \"${scheduleName}\" already exists`,\n      schedule_is_default: existingSchedule.isDefault\n    }\n  }];\n}\n\nif (existingSchedule && forceOverwrite) {\n  console.log(`🔄 Schedule \"${scheduleName}\" exists but force_overwrite=true - will create new and set as default`);\n}\n\nreturn [{\n  json: {\n    ...config,\n    schedule_action: 'create',\n    schedule_message: existingSchedule ? 'Creating new schedule (force_overwrite)' : 'Creating new schedule'\n  }\n}];"
+      },
+      "id": "check-schedule-exists",
+      "name": "Check Schedule Exists",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.schedule_action }}",
+              "rightValue": "create",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-create-schedule",
+      "name": "Should Create Schedule?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.reply.io/v2/schedules",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.schedule_config) }}",
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "create-schedule",
+      "name": "Create Schedule",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1560,
+        50
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Process schedule creation result\nconst prevConfig = $('Check Schedule Exists').first().json;\nconst createResult = $input.first().json;\n\nif (createResult.scheduleId) {\n  console.log(`✅ Schedule created successfully with ID: ${createResult.scheduleId}`);\n  return [{\n    json: {\n      ...prevConfig,\n      schedule_id: createResult.scheduleId,\n      schedule_created: true,\n      schedule_message: `Schedule created with ID: ${createResult.scheduleId}`\n    }\n  }];\n} else {\n  console.error('❌ Failed to create schedule:', JSON.stringify(createResult));\n  return [{\n    json: {\n      ...prevConfig,\n      schedule_created: false,\n      schedule_error: createResult.error || createResult.message || 'Unknown error',\n      schedule_message: 'Failed to create schedule'\n    }\n  }];\n}"
+      },
+      "id": "process-schedule-result",
+      "name": "Process Schedule Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1780,
+        50
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.schedule_set_as_default }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            },
+            {
+              "leftValue": "={{ $json.schedule_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "isNotEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "should-set-default",
+      "name": "Should Set Default?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.reply.io/v2/schedules/{{ $json.schedule_id }}/set-default",
+        "authentication": "genericCredentialType",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {},
+        "genericAuthType": "httpHeaderAuth"
+      },
+      "id": "set-schedule-default",
+      "name": "Set Schedule as Default",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2220,
+        50
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "{{REPLY_CREDENTIAL_ID}}",
+          "name": "{{REPLY_CREDENTIAL_NAME}}"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Finalize schedule result\nconst prevData = $('Should Set Default?').first().json;\nconst setDefaultResult = $input.first();\n\n// Check HTTP status from the result\nconst httpStatus = setDefaultResult.json?.statusCode || 200;\nconst success = httpStatus >= 200 && httpStatus < 300;\n\nif (success) {\n  console.log(`✅ Schedule ${prevData.schedule_id} set as default`);\n} else {\n  console.warn(`⚠️ Failed to set schedule as default: ${JSON.stringify(setDefaultResult.json)}`);\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    schedule_is_default: success,\n    schedule_default_message: success ? 'Schedule set as default' : 'Failed to set as default'\n  }\n}];"
+      },
+      "id": "finalize-schedule",
+      "name": "Finalize Schedule",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2440,
+        50
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Skip setting default - just pass through\nconst prevData = $input.first().json;\nconsole.log(`ℹ️ Skipping set-default (schedule_id: ${prevData.schedule_id || 'none'}, set_as_default: ${prevData.schedule_set_as_default})`);\nreturn [{ json: { ...prevData, schedule_is_default: prevData.schedule_is_default || false } }];"
+      },
+      "id": "skip-set-default",
+      "name": "Skip Set Default",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2220,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Merge schedule branch results and continue to mailbox processing\n// This node receives from either the schedule creation branch or the skip branch\nconst scheduleResult = $input.first().json;\n\nconsole.log('📅 Schedule management complete:');\nconsole.log(`   - Action: ${scheduleResult.schedule_action || 'skipped'}`);\nconsole.log(`   - ID: ${scheduleResult.schedule_id || 'none'}`);\nconsole.log(`   - Is Default: ${scheduleResult.schedule_is_default || false}`);\nconsole.log(`   - Message: ${scheduleResult.schedule_message || 'No schedule configured'}`);\n\n// Pass the full config to the mailbox processing branch\nreturn [{ json: scheduleResult }];"
+      },
+      "id": "schedule-complete",
+      "name": "Schedule Complete",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2660,
+        100
+      ]
+    },
+    {
+      "parameters": {
         "jsCode": "// Extract configuration from workflow execution data\nconst executionData = $input.first().json;\n\n// Check if data was passed via workflow fields\nconst config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;\n\nconst workspaceId = config.reply_workspace_id || 'default-workspace';\n// Check both mailbox_csv_content AND data fields\nconst mailboxCsv = config.mailbox_csv_content || config.data || '';\nconst sendingLimits = config.sending_limits || { daily: 50, hourly: 10 };\nconst forceOverwrite = config.force_overwrite || false;\nconst companyName = config.company_name || 'Test Company';\n\nconsole.log('Parse CSV - mailboxCsv length:', mailboxCsv.length);\nconsole.log('Parse CSV - first 100 chars:', mailboxCsv.substring(0, 100));\n\n// If no CSV content, return mock data for testing\nif (!mailboxCsv || mailboxCsv.trim() === '') {\n  return [{ json: {\n    email: 'test@example.com',\n    senderName: 'Test User',\n    firstName: 'Test',\n    lastName: 'User',\n    domain: 'example.com',\n    displayName: 'Test',\n    dailyLimit: 50,\n    smtp: { host: 'smtp.example.com', port: 587, password: 'test' },\n    imap: { host: 'imap.example.com', port: 993, password: 'test' },\n    warmup: { dailyGoal: 20, dailyIncrement: 2 },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: 2,\n    _isMockData: true\n  }}];\n}\n\n// Parse CSV manually (csv-parse not available in n8n)\nconst lines = mailboxCsv.trim().split('\\n');\nconst headers = lines[0].split(',').map(h => h.trim());\nconst records = [];\n\nfor (let i = 1; i < lines.length; i++) {\n  const values = lines[i].split(',').map(v => v.trim());\n  const record = {};\n  headers.forEach((header, idx) => {\n    record[header] = values[idx] || '';\n  });\n  records.push(record);\n}\n\n// Transform records\nconst mailboxes = records.map((record, index) => {\n  // Parse name\n  const nameParts = (record['Sender Name'] || '').trim().split(/\\s+/);\n  const firstName = nameParts[0] || '';\n  const lastName = nameParts.slice(1).join(' ') || '';\n  \n  // Extract domain\n  const domain = record.Email.match(/@(.+)$/)?.[1] || '';\n  \n  return {\n    email: record.Email.trim().toLowerCase(),\n    senderName: record['Sender Name'],\n    firstName,\n    lastName,\n    domain,\n    displayName: firstName, // Use first name only\n    dailyLimit: parseInt(record['Daily Limit']) || 50,\n    smtp: {\n      host: record['SMTP Host'] || '',\n      port: parseInt(record['SMTP Port']) || 587,\n      password: record['SMTP Password'] || ''\n    },\n    imap: {\n      host: record['IMAP Host'] || '',\n      port: parseInt(record['IMAP Port']) || 993,\n      password: record['IMAP Password'] || ''\n    },\n    warmup: {\n      dailyGoal: parseInt(record['Warmup Daily Goal']) || 20,\n      dailyIncrement: parseInt(record['Warmup Daily Increment']) || 2\n    },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: index + 2\n  };\n});\n\nreturn mailboxes.map(m => ({ json: m }));"
       },
       "id": "parse-csv",
@@ -647,7 +920,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate Phase 1 completion comment\n// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare CSV Binary').first().json;\nconst summary = data.summary;\n\nconst comment = `\u2705 **Phase 1: Import & Hygiene Complete**\n\nMailboxes processed: ${summary.total}\n- Created: ${summary.created}\n- Updated: ${summary.updated}\n- Skipped: ${summary.skipped}\n- Failed: ${summary.failed}\n- Limits Applied: ${summary.limitsApplied}\n- Success rate: ${summary.successRate}\n\n${summary.failed > 0 ? '\u26a0\ufe0f Some mailboxes failed to process. See attached CSV for details.\\n\\n' : ''}\ud83d\udcce Report attached: phase1_import_hygiene.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+        "jsCode": "// Generate Phase 1 completion comment\n// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare CSV Binary').first().json;\nconst summary = data.summary;\n\n// Get schedule info from Schedule Complete node\nlet scheduleInfo = '';\ntry {\n  const scheduleData = $('Schedule Complete').first().json;\n  if (scheduleData.schedule_id) {\n    scheduleInfo = `\\n**Sending Schedule:**\\n- Name: ${scheduleData.schedule_config?.name || 'N/A'}\\n- ID: ${scheduleData.schedule_id}\\n- Is Default: ${scheduleData.schedule_is_default ? 'Yes' : 'No'}\\n- Status: ${scheduleData.schedule_message || 'Created'}\\n`;\n  } else if (scheduleData.schedule_skipped) {\n    scheduleInfo = '\\n**Sending Schedule:** Not configured\\n';\n  }\n} catch (e) {\n  scheduleInfo = '';\n}\n\nconst comment = `✅ **Phase 1: Import & Hygiene Complete**\\n${scheduleInfo}\\nMailboxes processed: ${summary.total}\\n- Created: ${summary.created}\\n- Updated: ${summary.updated}\\n- Skipped: ${summary.skipped}\\n- Failed: ${summary.failed}\\n- Limits Applied: ${summary.limitsApplied}\\n- Success rate: ${summary.successRate}\\n\\n${summary.failed > 0 ? '⚠️ Some mailboxes failed to process. See attached CSV for details.\\n\\n' : ''}📎 Report attached: phase1_import_hygiene.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
       },
       "id": "prepare-comment",
       "name": "Prepare Comment",
@@ -716,6 +989,159 @@
   ],
   "connections": {
     "Start": {
+      "main": [
+        [
+          {
+            "node": "Prepare Schedule Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Schedule Config": {
+      "main": [
+        [
+          {
+            "node": "Has Schedule Config?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Schedule Config?": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Schedules",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Schedule Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Schedules": {
+      "main": [
+        [
+          {
+            "node": "Check Schedule Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Schedule Exists": {
+      "main": [
+        [
+          {
+            "node": "Should Create Schedule?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Create Schedule?": {
+      "main": [
+        [
+          {
+            "node": "Create Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Should Set Default?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Schedule": {
+      "main": [
+        [
+          {
+            "node": "Process Schedule Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Schedule Result": {
+      "main": [
+        [
+          {
+            "node": "Should Set Default?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Should Set Default?": {
+      "main": [
+        [
+          {
+            "node": "Set Schedule as Default",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Set Default",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Schedule as Default": {
+      "main": [
+        [
+          {
+            "node": "Finalize Schedule",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Finalize Schedule": {
+      "main": [
+        [
+          {
+            "node": "Schedule Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Set Default": {
+      "main": [
+        [
+          {
+            "node": "Schedule Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Complete": {
       "main": [
         [
           {

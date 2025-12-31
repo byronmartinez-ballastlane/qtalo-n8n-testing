@@ -8,7 +8,7 @@
 | Workspace create if missing | ✅ Required | ❌ NOT POSSIBLE | Reply.io API doesn't support workspace creation |
 | Mailbox upsert | ✅ Required | ✅ Implemented | Create/update by email |
 | Display name normalization | ✅ Required | ✅ Implemented | First-name-only format |
-| Sending limits/windows | ✅ Optional | ⚠️ Partial | Daily limit works, sending windows NOT supported by API |
+| Sending limits/windows | ✅ Optional | ✅ Implemented | Daily limit via API, sending windows via Reply.io Schedules API |
 | CSV report attachment | ✅ Required | ✅ Implemented | Attached to ClickUp |
 | ClickUp summary comment | ✅ Required | ✅ Implemented | |
 | **Phase 2** | | | |
@@ -47,23 +47,32 @@ Reply.io API does **NOT** support workspace creation. Workspaces can only be cre
 
 ---
 
-### 2. ⚠️ Phase 1: Sending Windows (PARTIAL)
+### 2. ✅ Phase 1: Sending Windows (IMPLEMENTED)
 
 **Spec Says:**
 > sending_limits JSON (e.g., { "daily": 30, "window": { "start": "09:00", "end": "17:00", "tz": "America/New_York" } })
 
 **Reality:**
 Reply.io API supports:
-- ✅ Daily limit (`dailyLimit`)
-- ❌ Sending windows (not available via API)
+- ✅ Daily limit (`dailyLimit`) via mailbox settings
+- ✅ Sending windows via Reply.io Schedules API (`POST /v2/schedules`)
 
 **Current Behavior:**
 - Daily limit is passed to mailbox creation
-- Window settings are ignored
+- Sending windows are configured via `sending_schedule` ClickUp field
+- Phase 1 creates a Reply.io Schedule with the configured time windows
+- Schedule is set as default for new sequences/campaigns
 
-**Recommendation:**
-- Remove sending window from spec OR
-- Document as UI-only configuration
+**ClickUp Field Format (`sending_schedule`):**
+```json
+{
+  "name": "Business Hours",
+  "timezone": "Eastern Standard Time",
+  "window": { "start": "09:00", "end": "17:00" },
+  "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+  "set_as_default": true
+}
+```
 
 ---
 
@@ -184,8 +193,8 @@ Only custom fields CSV is generated. Missing:
 | Workspaces | ❌ UI Only |
 | Email Accounts/Mailboxes | ✅ Full CRUD |
 | Mailbox Settings (daily limit) | ✅ |
-| Sending Windows | ❌ UI Only |
-| Email Signatures | ❌ UI Only |
+| Sending Schedules (time windows) | ✅ Create, List, Set Default |
+| Email Signatures | ❌ UI Only (Puppeteer Lambda) |
 | Custom Fields | ✅ Full CRUD |
 | Campaigns/Sequences | ✅ Full CRUD |
 | Team/Users | ❌ UI Only |
