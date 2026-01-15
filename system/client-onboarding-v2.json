@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2025-12-30T02:46:30.296Z",
+  "updatedAt": "2026-01-15T20:09:19.504Z",
   "createdAt": "2025-12-21T14:47:43.559Z",
   "id": "yMRb0i13knCpzGnF",
   "name": "System - Client Onboarding v2",
@@ -211,28 +211,16 @@
     {
       "id": "check-status",
       "name": "Check If Onboarding Status",
-      "type": "n8n-nodes-base.if",
+      "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         820,
         300
       ],
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false
-          },
-          "conditions": [
-            {
-              "leftValue": "={{ $('Webhook: Onboard Client').item.json.body.history_items?.[0]?.after?.status || $('Webhook: Onboard Client').item.json.body.status?.status || '' }}",
-              "rightValue": "onboarding",
-              "operator": {
-                "type": "string",
-                "operation": "equals"
-              }
-            }
-          ]
-        }
+        "mode": "runOnceForAllItems",
+        "language": "javaScript",
+        "jsCode": "// Check if status is \"onboarding\" (case-insensitive)\nconst body = $input.first().json.body || {};\nconst historyItems = body.history_items || [];\nconst newStatus = (historyItems[0]?.after?.status || '').toLowerCase();\n\nconsole.log('Status check - new status:', newStatus);\n\nif (newStatus === 'onboarding') {\n  // TRUE - proceed with onboarding\n  return [{ json: { ...$input.first().json, isOnboarding: true } }];\n} else {\n  // FALSE - skip, will be routed to skip response\n  return [{ json: { ...$input.first().json, isOnboarding: false } }];\n}"
       }
     },
     {
@@ -981,7 +969,7 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
       }
@@ -1005,7 +993,7 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
       }
@@ -1029,7 +1017,7 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
       }
@@ -1053,7 +1041,7 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
       }
@@ -1077,7 +1065,7 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
       }
@@ -1101,9 +1089,55 @@
       },
       "credentials": {
         "jwtAuth": {
-          "id": "GTMIQ9enUC5HkDq6",
+          "id": "3sORmrZy6PTT3Gzb",
           "name": "AWS API Gateway JWT"
         }
+      }
+    },
+    {
+      "id": "skip-not-onboarding",
+      "name": "Skip - Not Onboarding Status",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        940,
+        500
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"success\": true, \"message\": \"Ignored - task status is not Onboarding\", \"task_id\": \"{{ $(\"Webhook: Onboard Client\").item.json.body.task_id }}\" }",
+        "options": {}
+      }
+    },
+    {
+      "id": "route-onboarding-check",
+      "name": "Route Onboarding Check",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.isOnboarding }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
       }
     }
   ],
@@ -1112,7 +1146,7 @@
       "main": [
         [
           {
-            "node": "JWT Sign - Check Task in DynamoDB",
+            "node": "Check If Onboarding Status",
             "type": "main",
             "index": 0
           }
@@ -1185,7 +1219,7 @@
       "main": [
         [
           {
-            "node": "Check If Onboarding Status",
+            "node": "Fetch ClickUp Task",
             "type": "main",
             "index": 0
           }
@@ -1203,7 +1237,7 @@
       "main": [
         [
           {
-            "node": "Fetch ClickUp Task",
+            "node": "Route Onboarding Check",
             "type": "main",
             "index": 0
           }
@@ -1584,6 +1618,24 @@
           }
         ]
       ]
+    },
+    "Route Onboarding Check": {
+      "main": [
+        [
+          {
+            "node": "JWT Sign - Check Task in DynamoDB",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip - Not Onboarding Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -1594,8 +1646,9 @@
   "staticData": null,
   "meta": null,
   "pinData": null,
-  "versionId": "c701fe31-9cc7-4ba1-b60e-baf308293e4b",
-  "versionCounter": 126,
+  "versionId": "441e7dee-954d-4506-bfc9-84f9796cd1c0",
+  "activeVersionId": "441e7dee-954d-4506-bfc9-84f9796cd1c0",
+  "versionCounter": 276,
   "triggerCount": 1,
   "shared": [
     {
@@ -1622,7 +1675,7 @@
             "userId": "cb6d5270-4b28-442b-abaf-52304e0e7e0c",
             "projectId": "BFIDAvXOISVZh7tb",
             "user": {
-              "updatedAt": "2025-12-29T07:16:26.000Z",
+              "updatedAt": "2026-01-15T05:35:34.000Z",
               "createdAt": "2025-11-20T14:37:17.770Z",
               "id": "cb6d5270-4b28-442b-abaf-52304e0e7e0c",
               "email": "devin@qtalo.com",
@@ -1634,7 +1687,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2025-12-29",
+              "lastActiveAt": "2026-01-15",
               "isPending": false
             }
           },
@@ -1644,7 +1697,7 @@
             "userId": "006ccda9-eea6-49d4-bc9f-dacf3ba5da1b",
             "projectId": "BFIDAvXOISVZh7tb",
             "user": {
-              "updatedAt": "2025-12-19T20:07:30.000Z",
+              "updatedAt": "2026-01-15T19:08:17.000Z",
               "createdAt": "2025-11-20T14:41:10.140Z",
               "id": "006ccda9-eea6-49d4-bc9f-dacf3ba5da1b",
               "email": "byron@qtalo.com",
@@ -1658,7 +1711,7 @@
               },
               "disabled": false,
               "mfaEnabled": false,
-              "lastActiveAt": "2025-12-19",
+              "lastActiveAt": "2026-01-15",
               "isPending": false
             }
           },
