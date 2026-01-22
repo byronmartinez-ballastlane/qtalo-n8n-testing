@@ -74,8 +74,11 @@ resource "aws_iam_role_policy" "lambda_policy" {
 # S3 Bucket for Lambda Deployment
 # ============================================================
 
+# Get current AWS account ID for unique bucket naming
+data "aws_caller_identity" "current" {}
+
 resource "aws_s3_bucket" "lambda_deployments" {
-  bucket = "${var.project_name}-lambda-deployments-${var.environment}"
+  bucket = "${var.project_name}-lambda-deployments-${data.aws_caller_identity.current.account_id}-${var.environment}"
 
   tags = {
     Project     = var.project_name
@@ -240,8 +243,8 @@ resource "aws_lambda_function" "signature_automation" {
   timeout       = 900
   memory_size   = 3008
 
-  # Deploy from S3 bucket - use hardcoded values since bucket exists
-  s3_bucket = "qtalo-n8n-lambda-deployments-prod"
+  # Deploy from S3 bucket - use dynamic bucket name with account ID
+  s3_bucket = aws_s3_bucket.lambda_deployments.bucket
   s3_key    = "replyio-signature-automation/function.zip"
 
   # Ephemeral storage for Puppeteer/Chromium
@@ -257,7 +260,7 @@ resource "aws_lambda_function" "signature_automation" {
   }
 
   layers = [
-    "arn:aws:lambda:${var.aws_region}:764866452798:layer:chrome-aws-lambda:45"
+    var.chrome_lambda_layer_arn
   ]
 
   tags = {

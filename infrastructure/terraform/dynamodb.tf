@@ -1,8 +1,8 @@
 # DynamoDB table for client configuration and metadata
 resource "aws_dynamodb_table" "clients" {
-  name           = "${var.project_name}-clients-${var.environment}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "client_id"
+  name         = "${var.project_name}-clients-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "client_id"
 
   attribute {
     name = "client_id"

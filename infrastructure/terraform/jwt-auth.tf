@@ -30,9 +30,9 @@ resource "aws_secretsmanager_secret" "jwt_signing_secret" {
 resource "aws_secretsmanager_secret_version" "jwt_signing_secret_initial" {
   secret_id = aws_secretsmanager_secret.jwt_signing_secret.id
   secret_string = jsonencode({
-    secret     = random_password.initial_jwt_secret.result
-    createdAt  = timestamp()
-    rotatedBy  = "terraform-initial"
+    secret    = random_password.initial_jwt_secret.result
+    createdAt = timestamp()
+    rotatedBy = "terraform-initial"
   })
 
   lifecycle {
@@ -42,7 +42,7 @@ resource "aws_secretsmanager_secret_version" "jwt_signing_secret_initial" {
 
 # Generate initial random secret
 resource "random_password" "initial_jwt_secret" {
-  length  = 64  # 32 bytes in hex = 64 characters
+  length  = 64 # 32 bytes in hex = 64 characters
   special = false
 }
 
@@ -316,7 +316,7 @@ resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   authorizer_credentials           = aws_iam_role.api_gateway_authorizer_role.arn
   type                             = "TOKEN"
   identity_source                  = "method.request.header.Authorization"
-  authorizer_result_ttl_in_seconds = 300  # Cache auth results for 5 minutes
+  authorizer_result_ttl_in_seconds = 300 # Cache auth results for 5 minutes
 }
 
 # IAM Role for API Gateway to invoke the authorizer Lambda
@@ -350,8 +350,8 @@ resource "aws_iam_role_policy" "api_gateway_authorizer_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = "lambda:InvokeFunction"
+        Effect   = "Allow"
+        Action   = "lambda:InvokeFunction"
         Resource = aws_lambda_function.jwt_authorizer.arn
       }
     ]
@@ -381,29 +381,7 @@ resource "aws_api_gateway_api_key" "n8n_api_key" {
   }
 }
 
-# Store API Key in Secrets Manager for reference
-resource "aws_secretsmanager_secret" "api_key_secret" {
-  name        = "n8n/clients/qtalo/api-gateway-key"
-  description = "API Gateway API Key for n8n integration"
-
-  tags = {
-    Project     = var.project_name
-    Environment = var.environment
-  }
-}
-
-resource "aws_secretsmanager_secret_version" "api_key_secret_value" {
-  secret_id = aws_secretsmanager_secret.api_key_secret.id
-  secret_string = jsonencode({
-    apiKeyId    = aws_api_gateway_api_key.n8n_api_key.id
-    apiKeyValue = aws_api_gateway_api_key.n8n_api_key.value
-    createdAt   = timestamp()
-  })
-
-  lifecycle {
-    ignore_changes = [secret_string]
-  }
-}
+# Note: API Gateway API Key value is stored in n8n, not in Secrets Manager
 
 # Usage Plan (required even for simple API key)
 resource "aws_api_gateway_usage_plan" "n8n_usage_plan" {

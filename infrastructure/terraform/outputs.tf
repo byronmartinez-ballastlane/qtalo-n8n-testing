@@ -4,7 +4,7 @@
 
 output "api_gateway_url" {
   description = "Base URL for the API Gateway"
-  value       = "${aws_api_gateway_stage.api.invoke_url}"
+  value       = aws_api_gateway_stage.api.invoke_url
 }
 
 output "api_gateway_id" {
@@ -31,16 +31,16 @@ output "lambda_role_arn" {
 output "endpoints" {
   description = "API endpoints for n8n workflows"
   value = {
-    health          = "${aws_api_gateway_stage.api.invoke_url}/health"
-    list_clients    = "${aws_api_gateway_stage.api.invoke_url}/clients"
-    get_client      = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
-    get_by_task     = "${aws_api_gateway_stage.api.invoke_url}/clients/by-task/{taskId}"
-    create_client   = "${aws_api_gateway_stage.api.invoke_url}/clients"
-    update_client   = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
-    delete_client   = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
-    get_credentials = "${aws_api_gateway_stage.api.invoke_url}/credentials/{clientId}"
+    health           = "${aws_api_gateway_stage.api.invoke_url}/health"
+    list_clients     = "${aws_api_gateway_stage.api.invoke_url}/clients"
+    get_client       = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    get_by_task      = "${aws_api_gateway_stage.api.invoke_url}/clients/by-task/{taskId}"
+    create_client    = "${aws_api_gateway_stage.api.invoke_url}/clients"
+    update_client    = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    delete_client    = "${aws_api_gateway_stage.api.invoke_url}/clients/{clientId}"
+    get_credentials  = "${aws_api_gateway_stage.api.invoke_url}/credentials/{clientId}"
     update_workflows = "${aws_api_gateway_stage.api.invoke_url}/workflows"
-    sync_clients    = "${aws_api_gateway_stage.api.invoke_url}/sync"
+    sync_clients     = "${aws_api_gateway_stage.api.invoke_url}/sync"
   }
 }
 
