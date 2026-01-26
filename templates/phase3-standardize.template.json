@@ -39,7 +39,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process custom fields spec from ClickUp config\nconst config = $('Start').first().json;\nconst existingFieldsResponse = $input.first().json || [];\nconst taskId = config.task_id;\n\n// ============================================================\n// CHECK FOR REPLY.IO AUTH ERRORS (401/403)\n// ============================================================\nif (existingFieldsResponse.error || existingFieldsResponse.statusCode === 401 || existingFieldsResponse.statusCode === 403 || \n    existingFieldsResponse.message?.includes('Unauthorized') || existingFieldsResponse.message?.includes('Forbidden')) {\n  \n  const errorMsg = existingFieldsResponse.error?.message || existingFieldsResponse.message || existingFieldsResponse.error || 'Authentication failed';\n  const statusCode = existingFieldsResponse.statusCode || existingFieldsResponse.error?.statusCode || 'unknown';\n  \n  console.error(`\u274c Reply.io Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp\n  if (taskId && taskId !== 'unknown') {\n    try {\n      await this.helpers.request({\n        method: 'POST',\n        uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n        headers: {\n          'Authorization': HARDCODED_CLICKUP_API_KEY,\n          'Content-Type': 'application/json'\n        },\n        body: {\n          comment_text: `\ud83d\udea8 **Authentication Error - Reply.io API (Phase 3)**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the Reply.io API key is valid\\n2. Check if the API key has the correct permissions\\n3. Update the API key in the n8n workflow\\n\\n**API Endpoint:** GET /v1/custom-fields/all\\n**Current API Key (last 8 chars):** ...${HARDCODED_REPLY_API_KEY.slice(-8)}`\n        },\n        json: true\n      });\n      console.log('\u2705 Posted Reply.io auth error comment to ClickUp');\n    } catch (commentError) {\n      console.error('Failed to post error comment:', commentError.message);\n    }\n  }\n  \n  throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n// ============================================================\n\nconst existingFields = Array.isArray(existingFieldsResponse) ? existingFieldsResponse : [];\n\n// Get custom fields spec from config - start with provided spec or empty array\nlet customFieldsSpec = config.custom_fields_spec || [];\nif (!Array.isArray(customFieldsSpec)) {\n  customFieldsSpec = [];\n}\n\n// ============================================================\n// AUTO-ADD 'Lead Stage' field if not already in spec\n// Per Devin: \"We just want a simple custom field 'Lead Stage' (text)\"\n// ============================================================\nconst hasLeadStage = customFieldsSpec.some(f => \n  f.name && f.name.toLowerCase() === 'lead stage'\n);\n\nif (!hasLeadStage) {\n  console.log('\u2705 Auto-adding standard \"Lead Stage\" custom field');\n  customFieldsSpec.push({\n    name: 'Lead Stage',\n    type: 'text'\n  });\n}\n// ============================================================\n\n// Build map of existing fields by title (lowercase for comparison)\nconst existingByTitle = {};\nif (Array.isArray(existingFields)) {\n  existingFields.forEach(field => {\n    if (field.title) {\n      existingByTitle[field.title.toLowerCase()] = field;\n    }\n  });\n}\n\n// Map text/number to Reply.io field type (0=text, 1=number)\nconst mapFieldType = (type) => {\n  const t = String(type).toLowerCase();\n  return t === 'number' ? 1 : 0;\n};\n\nconst fieldsToCreate = [];\nconst fieldsToSkip = [];\n\ncustomFieldsSpec.forEach(specField => {\n  const fieldTitle = specField.name; // ClickUp uses 'name', Reply uses 'title'\n  const fieldType = mapFieldType(specField.type || 'text');\n  const existing = existingByTitle[fieldTitle.toLowerCase()];\n  \n  if (!existing) {\n    // Field doesn't exist - create it\n    fieldsToCreate.push({\n      title: fieldTitle,\n      type: fieldType\n    });\n  } else {\n    // Field exists - skip\n    fieldsToSkip.push({\n      title: fieldTitle,\n      type: fieldType,\n      id: existing.id,\n      reason: 'already exists'\n    });\n  }\n});\n\n// If no fields to process at all (unlikely now with Lead Stage auto-add)\nif (fieldsToCreate.length === 0 && fieldsToSkip.length === 0) {\n  return [{\n    json: {\n      task_id: config.task_id,\n      action: 'skip',\n      message: 'No custom fields to process',\n      fields_to_create: [],\n      fields_to_skip: []\n    }\n  }];\n}\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    fields_to_create: fieldsToCreate,\n    fields_to_skip: fieldsToSkip\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/process-fields-spec.js}}"
       },
       "id": "process-fields-spec",
       "name": "Process Fields Spec",
@@ -52,7 +52,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Split fields to create into individual items\nconst data = $input.first().json;\nconst fieldsToCreate = data.fields_to_create || [];\n\nif (fieldsToCreate.length === 0) {\n  return [];\n}\n\nreturn fieldsToCreate.map(field => ({\n  json: {\n    task_id: data.task_id,\n    fields_to_skip: data.fields_to_skip || [],\n    field_title: field.title,\n    field_type: field.type\n  }\n}));"
+        "jsCode": "{{INJECT:scripts/phase3/split-fields-to-create.js}}"
       },
       "id": "split-fields-to-create",
       "name": "Split Fields to Create",
@@ -102,7 +102,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Collect results from all operations\nconst processData = $('Process Fields Spec').first().json;\nconst createResults = $input.all();\nconst splitResults = $('Split Fields to Create').all();\n\n// Get skipped fields from any create result (they all have it)\nconst fieldsToSkip = createResults.length > 0 ? (createResults[0].json.fields_to_skip || []) : (processData.fields_to_skip || []);\n\nconst created = [];\nconst alreadyExisted = [];\nconst failed = [];\n\n// Map Reply.io field type back to human-readable (0=text, 1=number)\nconst mapFieldTypeBack = (type) => {\n  return type === 1 ? 'number' : 'text';\n};\n\ncreateResults.forEach((item, index) => {\n  // Get original field data from Split node\n  const originalData = splitResults[index]?.json || {};\n  const fieldTitle = item.json.title || item.json.field_title || originalData.field_title || 'unknown';\n  const fieldType = item.json.fieldType !== undefined ? item.json.fieldType : (item.json.field_type !== undefined ? item.json.field_type : originalData.field_type);\n  \n  if (item.json.error) {\n    const errorMsg = item.json.error.message || item.json.error.toString();\n    \n    // Check if error is ALREADY_EXISTS - treat as success\n    if (errorMsg.includes('ALREADY_EXISTS_ERROR') || errorMsg.includes('already exists')) {\n      alreadyExisted.push({\n        title: fieldTitle,\n        type: mapFieldTypeBack(fieldType),\n        reason: 'already exists'\n      });\n    } else {\n      // Real failure\n      failed.push({\n        title: fieldTitle,\n        error: errorMsg\n      });\n    }\n  } else {\n    created.push({\n      title: fieldTitle,\n      id: item.json.id,\n      type: mapFieldTypeBack(fieldType)\n    });\n  }\n});\n\nconst summary = {\n  total: (processData.fields_to_create?.length || 0) + fieldsToSkip.length,\n  created: created.length,\n  alreadyExisted: alreadyExisted.length,\n  skipped: fieldsToSkip.length,\n  failed: failed.length,\n  successRate: `${Math.round(((created.length + alreadyExisted.length) / Math.max(1, created.length + alreadyExisted.length + failed.length)) * 100)}%`\n};\n\nreturn [{\n  json: {\n    task_id: processData.task_id,\n    phase: 'Phase 3: Custom Fields',\n    summary,\n    created,\n    alreadyExisted,\n    failed,\n    skipped: fieldsToSkip,\n    csv_data: [\n      ...created.map(f => ({ title: f.title, type: f.type, status: 'created', id: f.id, error: '' })),\n      ...alreadyExisted.map(f => ({ title: f.title, type: f.type, status: 'already existed', id: '', error: '' })),\n      ...fieldsToSkip.map(f => ({ title: f.title, type: mapFieldTypeBack(f.type), status: 'skipped', id: f.id || '', error: f.reason })),\n      ...failed.map(f => ({ title: f.title, type: '', status: 'failed', id: '', error: f.error }))\n    ]\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/collect-results.js}}"
       },
       "id": "collect-results",
       "name": "Collect Results",
@@ -115,7 +115,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate CSV report for custom fields\nconst data = $input.first().json;\nconst csvData = data.csv_data || [];\n\n// Build CSV\nconst headers = ['Title', 'Type', 'Status', 'Field ID', 'Error'];\nconst rows = csvData.map(row => [\n  row.title || '',\n  row.type || '',\n  row.status || '',\n  row.id || '',\n  row.error || ''\n]);\n\nconst csv = [\n  headers.join(','),\n  ...rows.map(row => row.map(cell => `\"${String(cell).replace(/\"/g, '\"\"')}\"`).join(','))\n].join('\\n');\n\nreturn [{\n  json: {\n    task_id: data.task_id,\n    phase: data.phase,\n    csv: csv,\n    summary: data.summary\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/create-csv-report.js}}"
       },
       "id": "create-csv-report",
       "name": "Create CSV Report",
@@ -128,7 +128,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase3_custom_fields.csv'\n    }\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/prepare-csv-binary.js}}"
       },
       "id": "prepare-csv-binary",
       "name": "Prepare CSV Binary",
@@ -186,7 +186,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate Phase 3 completion comment\n// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare CSV Binary').first().json;\nconst summary = data.summary;\n\nconst comment = `\u2705 **Phase 3: Custom Fields Complete**\n\nCustom fields processed: ${summary.total}\n- Created: ${summary.created}\n- Already existed: ${summary.alreadyExisted}\n- Skipped: ${summary.skipped}\n- Failed: ${summary.failed}\n- Success rate: ${summary.successRate}\n\n${summary.failed > 0 ? '\u26a0\ufe0f Some fields failed to create. See attached CSV for details.\\n\\n' : ''}\ud83d\udcce Report attached: phase3_custom_fields.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+        "jsCode": "{{INJECT:scripts/phase3/prepare-comment.js}}"
       },
       "id": "prepare-comment",
       "name": "Prepare Comment",
@@ -240,7 +240,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if sequences spec exists and mailboxes are available\nconst config = $('Start').first().json;\nconst sequenceIds = config.sequence_template_ids || [];\nconst mailboxes = config.mailboxes || [];\n\nif (!Array.isArray(sequenceIds) || sequenceIds.length === 0) {\n  // No sequences to process - return empty to skip this branch\n  console.log('No sequence_template_ids provided - skipping sequence cloning');\n  return [];\n}\n\nif (!Array.isArray(mailboxes) || mailboxes.length === 0) {\n  console.log('No mailboxes provided - cannot assign sequences');\n  return [];\n}\n\nconsole.log(`Will clone ${sequenceIds.length} sequence(s) for ${mailboxes.length} mailbox(es) = ${sequenceIds.length * mailboxes.length} total clones`);\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    sequence_template_ids: sequenceIds,\n    mailboxes: mailboxes,\n    force_overwrite: config.force_overwrite || false\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/check-sequences-spec.js}}"
       },
       "id": "check-sequences-spec",
       "name": "Check Sequences Spec",
@@ -277,7 +277,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process sequences spec - create sequence × mailbox combinations\nconst data = $input.first().json;\nconst existingSequences = data.campaigns || data || [];\nconst config = $('Check Sequences Spec').first().json;\nconst sequenceIds = config.sequence_template_ids || [];\nconst mailboxes = config.mailboxes || [];\nconst forceOverwrite = config.force_overwrite;\n\n// Build map of existing sequences by name\nconst existingByName = {};\nif (Array.isArray(existingSequences)) {\n  existingSequences.forEach(seq => {\n    if (seq.name) {\n      existingByName[seq.name.toLowerCase()] = seq;\n    }\n  });\n}\n\n// Create cross-product: one clone per sequence × mailbox combination\nconst sequencesToClone = [];\nconst sequencesToSkip = [];\n\nsequenceIds.forEach(sourceId => {\n  mailboxes.forEach(mailbox => {\n    sequencesToClone.push({\n      source_id: sourceId,\n      mailbox_id: mailbox.id,\n      mailbox_email: mailbox.email,\n      force_overwrite: forceOverwrite\n    });\n  });\n});\n\nconsole.log(`Created ${sequencesToClone.length} sequence×mailbox combinations to clone`);\n\nreturn [{\n  json: {\n    task_id: config.task_id,\n    sequences_to_clone: sequencesToClone,\n    sequences_to_skip: sequencesToSkip,\n    existing_sequences: existingByName\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/process-sequences-spec.js}}"
       },
       "id": "process-sequences-spec",
       "name": "Process Sequences Spec",
@@ -290,7 +290,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Split sequence×mailbox combinations into individual items\nconst data = $input.first().json;\nconst sequencesToClone = data.sequences_to_clone || [];\n\nif (sequencesToClone.length === 0) {\n  return [];\n}\n\nreturn sequencesToClone.map(seq => ({\n  json: {\n    task_id: data.task_id,\n    source_sequence_id: seq.source_id,\n    mailbox_id: seq.mailbox_id,\n    mailbox_email: seq.mailbox_email,\n    force_overwrite: seq.force_overwrite,\n    existing_sequences: data.existing_sequences,\n    sequences_to_skip: data.sequences_to_skip || []\n  }\n}));"
+        "jsCode": "{{INJECT:scripts/phase3/split-sequences-to-clone.js}}"
       },
       "id": "split-sequences-to-clone",
       "name": "Split Sequences to Clone",
@@ -329,7 +329,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Prepare clone payload - check for errors/skip conditions first\nconst campaignData = $input.item.json;\nconst originalData = $('Split Sequences to Clone').item.json;\nconst existingSequences = originalData.existing_sequences || {};\n\n// Get mailbox info from the split data\nconst mailboxId = originalData.mailbox_id;\nconst mailboxEmail = originalData.mailbox_email;\n\n// Check if we got errors fetching source sequence\nif (campaignData.error || !campaignData.id) {\n  return {\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      mailbox_id: mailboxId,\n      mailbox_email: mailboxEmail,\n      sequence_name: 'unknown',\n      status: 'failed',\n      steps_cloned: 0,\n      error: campaignData.error?.message || 'Failed to fetch source sequence',\n      _skipApiCall: true\n    }\n  };\n}\n\nconst sourceName = campaignData.name || 'Unnamed Sequence';\n// Name clone with mailbox email for uniqueness\nconst clonedName = `Clone - ${mailboxEmail}`;\nconst forceOverwrite = originalData.force_overwrite;\n\n// Check if sequence already exists\nconst existing = existingSequences[clonedName.toLowerCase()];\nif (existing && !forceOverwrite) {\n  return {\n    json: {\n      source_sequence_id: originalData.source_sequence_id,\n      mailbox_id: mailboxId,\n      mailbox_email: mailboxEmail,\n      sequence_name: sourceName,\n      status: 'skipped',\n      steps_cloned: 0,\n      error: 'already exists (force_overwrite=false)',\n      _skipApiCall: true\n    }\n  };\n}\n\n// Get steps from v2 API response\nconst steps = campaignData.steps || [];\n\n// Prepare campaign creation payload - assign to mailbox email\nreturn {\n  json: {\n    source_sequence_id: originalData.source_sequence_id,\n    mailbox_id: mailboxId,\n    mailbox_email: mailboxEmail,\n    sequence_name: sourceName,\n    cloned_name: clonedName,\n    steps_count: steps.length,\n    _skipApiCall: false,\n    _payload: {\n      name: clonedName,\n      emailAccount: mailboxEmail,\n      settings: campaignData.settings || {},\n      steps: steps.map((step, index) => ({\n        number: index + 1,\n        inMinutesCount: step.inMinutesCount || 0,\n        templates: step.templates || []\n      }))\n    }\n  }\n};"
+        "jsCode": "{{INJECT:scripts/phase3/prepare-clone-payload.js}}"
       },
       "id": "prepare-clone-payload",
       "name": "Prepare Clone Payload",
@@ -403,7 +403,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Process clone API result\nconst prepData = $('Prepare Clone Payload').item.json;\nconst apiResponse = $input.item.json;\n\n// Check for API errors\nif (apiResponse.error || !apiResponse.id) {\n  return {\n    json: {\n      source_sequence_id: prepData.source_sequence_id,\n      mailbox_id: prepData.mailbox_id,\n      mailbox_email: prepData.mailbox_email,\n      sequence_name: prepData.sequence_name,\n      status: 'failed',\n      steps_cloned: 0,\n      error: apiResponse.error?.message || apiResponse.message || 'API call failed'\n    }\n  };\n}\n\nreturn {\n  json: {\n    source_sequence_id: prepData.source_sequence_id,\n    mailbox_id: prepData.mailbox_id,\n    mailbox_email: prepData.mailbox_email,\n    sequence_name: prepData.sequence_name,\n    cloned_id: apiResponse.id,\n    cloned_name: prepData.cloned_name,\n    status: 'created',\n    steps_cloned: prepData.steps_count,\n    error: ''\n  }\n};"
+        "jsCode": "{{INJECT:scripts/phase3/process-clone-result.js}}"
       },
       "id": "process-clone-result",
       "name": "Process Clone Result",
@@ -417,7 +417,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pass through skipped/failed items unchanged\nreturn $input.all();"
+        "jsCode": "{{INJECT:scripts/phase3/pass-skipped-items.js}}"
       },
       "id": "pass-skipped-items",
       "name": "Pass Skipped Items",
@@ -444,7 +444,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Collect sequence cloning results\nconst processData = $('Process Sequences Spec').first().json;\nconst cloneResults = $input.all();\nconst sequencesToSkip = processData.sequences_to_skip || [];\n\nconst created = [];\nconst skipped = [];\nconst failed = [];\n\ncloneResults.forEach(item => {\n  const status = item.json.status;\n  \n  if (status === 'created') {\n    created.push(item.json);\n  } else if (status === 'skipped') {\n    skipped.push(item.json);\n  } else {\n    failed.push(item.json);\n  }\n});\n\nconst summary = {\n  total: processData.sequences_to_clone?.length || 0,\n  created: created.length,\n  skipped: skipped.length + sequencesToSkip.length,\n  failed: failed.length,\n  successRate: `${Math.round((created.length / Math.max(1, created.length + failed.length)) * 100)}%`\n};\n\nreturn [{\n  json: {\n    task_id: processData.task_id,\n    phase: 'Phase 3: Sequences',\n    summary,\n    created,\n    skipped: [...skipped, ...sequencesToSkip],\n    failed,\n    csv_data: [\n      ...created.map(s => ({ source_id: s.source_sequence_id, mailbox_email: s.mailbox_email, name: s.sequence_name, cloned_name: s.cloned_name, cloned_id: s.cloned_id, status: 'created', steps: s.steps_cloned, error: '' })),\n      ...skipped.map(s => ({ source_id: s.source_sequence_id, mailbox_email: s.mailbox_email, name: s.sequence_name, cloned_name: '', cloned_id: '', status: 'skipped', steps: 0, error: s.error })),\n      ...sequencesToSkip.map(s => ({ source_id: s.source_id, mailbox_email: '', name: s.name || 'unknown', cloned_name: '', cloned_id: '', status: 'skipped', steps: 0, error: s.reason })),\n      ...failed.map(s => ({ source_id: s.source_sequence_id, mailbox_email: s.mailbox_email, name: s.sequence_name, cloned_name: '', cloned_id: '', status: 'failed', steps: 0, error: s.error }))\n    ]\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/collect-sequence-results.js}}"
       },
       "id": "collect-sequence-results",
       "name": "Collect Sequence Results",
@@ -457,7 +457,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate CSV report for sequences with full details\nconst data = $input.first().json;\nconst csvData = data.csv_data || [];\n\n// Build CSV with email, cloned name, sequence ID and URL\nconst headers = ['Email', 'Cloned Name', 'Sequence ID', 'URL', 'Status', 'Steps', 'Error'];\nconst rows = csvData.map(row => {\n  const seqId = row.cloned_id || '';\n  const url = seqId ? `https://app.reply.io/sequences/${seqId}` : '';\n  return [\n    row.mailbox_email || '',\n    row.cloned_name || '',\n    seqId,\n    url,\n    row.status || '',\n    row.steps || '',\n    row.error || ''\n  ];\n});\n\nconst csv = [\n  headers.join(','),\n  ...rows.map(row => row.map(cell => `\"${String(cell).replace(/\"/g, '\"\"')}\"`).join(','))\n].join('\\n');\n\nreturn [{\n  json: {\n    task_id: data.task_id,\n    phase: data.phase,\n    csv: csv,\n    summary: data.summary\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/create-sequences-csv.js}}"
       },
       "id": "create-sequences-csv",
       "name": "Create Sequences CSV",
@@ -470,7 +470,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare sequences CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv || 'No data';\nconst taskId = data.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase3_sequences.csv'\n    }\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase3/prepare-sequences-csv-binary.js}}"
       },
       "id": "prepare-sequences-csv-binary",
       "name": "Prepare Sequences CSV Binary",
@@ -528,7 +528,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate sequences completion comment\n// Get data from Prepare Sequences CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare Sequences CSV Binary').first().json;\nconst summary = data.summary;\n\nconst comment = `\u2705 **Phase 3: Sequences Cloned**\n\nSequences processed: ${summary.total}\n- Created: ${summary.created}\n- Skipped: ${summary.skipped}\n- Failed: ${summary.failed}\n- Success rate: ${summary.successRate}\n\n${summary.failed > 0 ? '\u26a0\ufe0f Some sequences failed to clone. See attached CSV for details.\\n\\n' : ''}\ud83d\udcce Report attached: phase3_sequences.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+        "jsCode": "{{INJECT:scripts/phase3/prepare-sequences-comment.js}}"
       },
       "id": "prepare-sequences-comment",
       "name": "Prepare Sequences Comment",

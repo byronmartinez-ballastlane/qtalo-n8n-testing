@@ -1,0 +1,67 @@
+// Extract sending_schedule from config and prepare for schedule creation
+const executionData = $input.first().json;
+const config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;
+
+const sendingSchedule = config.sending_schedule;
+const companyName = config.company_name || 'Default';
+const forceOverwrite = config.force_overwrite || false;
+
+// If no sending_schedule configured, skip schedule creation
+if (!sendingSchedule) {
+  console.log('ℹ️ No sending_schedule configured - skipping schedule creation');
+  return [{ json: { ...config, schedule_skipped: true, schedule_skip_reason: 'No sending_schedule configured' } }];
+}
+
+console.log('📅 Sending schedule configuration found:', JSON.stringify(sendingSchedule));
+
+// Parse the schedule config
+// Expected format from ClickUp:
+// {
+//   "name": "Business Hours",
+//   "timezone": "America/New_York" or "Eastern Standard Time",
+//   "window": { "start": "09:00", "end": "17:00" },
+//   "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+//   "set_as_default": true
+// }
+
+const scheduleName = sendingSchedule.name || `${companyName} Schedule`;
+const timezone = sendingSchedule.timezone || sendingSchedule.tz || 'Eastern Standard Time';
+const window = sendingSchedule.window || { start: '09:00', end: '17:00' };
+const activeDays = sendingSchedule.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const setAsDefault = sendingSchedule.set_as_default !== false; // Default to true
+
+// Parse time strings to hour/minute objects
+function parseTime(timeStr) {
+  const [hour, minute] = (timeStr || '00:00').split(':').map(Number);
+  return { hour: hour || 0, minute: minute || 0 };
+}
+
+const fromTime = parseTime(window.start);
+const toTime = parseTime(window.end);
+
+// Build mainTimings array for all 7 days
+const allDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const mainTimings = allDays.map(day => ({
+  weekDay: day,
+  isActive: activeDays.includes(day),
+  timeRanges: [{
+    fromTime: activeDays.includes(day) ? fromTime : { hour: 0, minute: 0 },
+    toTime: activeDays.includes(day) ? toTime : { hour: 24, minute: 0 }
+  }]
+}));
+
+return [{
+  json: {
+    ...config,
+    schedule_config: {
+      name: scheduleName,
+      timezoneId: timezone,
+      excludeHolidays: sendingSchedule.excludeHolidays || false,
+      useProspectTimezone: sendingSchedule.useProspectTimezone || true,
+      useFollowUpSchedule: false,
+      mainTimings: mainTimings
+    },
+    schedule_set_as_default: setAsDefault,
+    schedule_force_overwrite: forceOverwrite
+  }
+}];

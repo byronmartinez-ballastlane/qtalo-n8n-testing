@@ -14,7 +14,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract sending_schedule from config and prepare for schedule creation\nconst executionData = $input.first().json;\nconst config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;\n\nconst sendingSchedule = config.sending_schedule;\nconst companyName = config.company_name || 'Default';\nconst forceOverwrite = config.force_overwrite || false;\n\n// If no sending_schedule configured, skip schedule creation\nif (!sendingSchedule) {\n  console.log('ℹ️ No sending_schedule configured - skipping schedule creation');\n  return [{ json: { ...config, schedule_skipped: true, schedule_skip_reason: 'No sending_schedule configured' } }];\n}\n\nconsole.log('📅 Sending schedule configuration found:', JSON.stringify(sendingSchedule));\n\n// Parse the schedule config\n// Expected format from ClickUp:\n// {\n//   \"name\": \"Business Hours\",\n//   \"timezone\": \"America/New_York\" or \"Eastern Standard Time\",\n//   \"window\": { \"start\": \"09:00\", \"end\": \"17:00\" },\n//   \"days\": [\"Monday\", \"Tuesday\", \"Wednesday\", \"Thursday\", \"Friday\"],\n//   \"set_as_default\": true\n// }\n\nconst scheduleName = sendingSchedule.name || `${companyName} Schedule`;\nconst timezone = sendingSchedule.timezone || sendingSchedule.tz || 'Eastern Standard Time';\nconst window = sendingSchedule.window || { start: '09:00', end: '17:00' };\nconst activeDays = sendingSchedule.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];\nconst setAsDefault = sendingSchedule.set_as_default !== false; // Default to true\n\n// Parse time strings to hour/minute objects\nfunction parseTime(timeStr) {\n  const [hour, minute] = (timeStr || '00:00').split(':').map(Number);\n  return { hour: hour || 0, minute: minute || 0 };\n}\n\nconst fromTime = parseTime(window.start);\nconst toTime = parseTime(window.end);\n\n// Build mainTimings array for all 7 days\nconst allDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];\nconst mainTimings = allDays.map(day => ({\n  weekDay: day,\n  isActive: activeDays.includes(day),\n  timeRanges: [{\n    fromTime: activeDays.includes(day) ? fromTime : { hour: 0, minute: 0 },\n    toTime: activeDays.includes(day) ? toTime : { hour: 24, minute: 0 }\n  }]\n}));\n\nreturn [{\n  json: {\n    ...config,\n    schedule_config: {\n      name: scheduleName,\n      timezoneId: timezone,\n      excludeHolidays: sendingSchedule.excludeHolidays || false,\n      useProspectTimezone: sendingSchedule.useProspectTimezone || true,\n      useFollowUpSchedule: false,\n      mainTimings: mainTimings\n    },\n    schedule_set_as_default: setAsDefault,\n    schedule_force_overwrite: forceOverwrite\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/prepare-schedule.js}}"
       },
       "id": "prepare-schedule",
       "name": "Prepare Schedule Config",
@@ -83,7 +83,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if schedule with same name already exists\nconst config = $('Prepare Schedule Config').first().json;\nconst existingSchedules = $input.all().map(item => item.json);\nconst scheduleName = config.schedule_config.name;\nconst forceOverwrite = config.schedule_force_overwrite;\n\nconsole.log(`📅 Checking for existing schedule: \"${scheduleName}\"`);\nconsole.log(`📅 Found ${existingSchedules.length} existing schedules`);\n\n// Find schedule with matching name\nconst existingSchedule = existingSchedules.find(s => s.name === scheduleName);\n\nif (existingSchedule && !forceOverwrite) {\n  console.log(`✅ Schedule \"${scheduleName}\" already exists (ID: ${existingSchedule.id}) - skipping creation`);\n  return [{\n    json: {\n      ...config,\n      schedule_action: 'skip',\n      schedule_id: existingSchedule.id,\n      schedule_message: `Schedule \"${scheduleName}\" already exists`,\n      schedule_is_default: existingSchedule.isDefault\n    }\n  }];\n}\n\nif (existingSchedule && forceOverwrite) {\n  console.log(`🔄 Schedule \"${scheduleName}\" exists but force_overwrite=true - will create new and set as default`);\n}\n\nreturn [{\n  json: {\n    ...config,\n    schedule_action: 'create',\n    schedule_message: existingSchedule ? 'Creating new schedule (force_overwrite)' : 'Creating new schedule'\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/check-schedule-exists.js}}"
       },
       "id": "check-schedule-exists",
       "name": "Check Schedule Exists",
@@ -163,7 +163,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Process schedule creation result\nconst prevConfig = $('Check Schedule Exists').first().json;\nconst createResult = $input.first().json;\n\nif (createResult.scheduleId) {\n  console.log(`✅ Schedule created successfully with ID: ${createResult.scheduleId}`);\n  return [{\n    json: {\n      ...prevConfig,\n      schedule_id: createResult.scheduleId,\n      schedule_created: true,\n      schedule_message: `Schedule created with ID: ${createResult.scheduleId}`\n    }\n  }];\n} else {\n  console.error('❌ Failed to create schedule:', JSON.stringify(createResult));\n  return [{\n    json: {\n      ...prevConfig,\n      schedule_created: false,\n      schedule_error: createResult.error || createResult.message || 'Unknown error',\n      schedule_message: 'Failed to create schedule'\n    }\n  }];\n}"
+        "jsCode": "{{INJECT:scripts/phase1/process-schedule-result.js}}"
       },
       "id": "process-schedule-result",
       "name": "Process Schedule Result",
@@ -248,7 +248,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Finalize schedule result\nconst prevData = $('Should Set Default?').first().json;\nconst setDefaultResult = $input.first();\n\n// Check HTTP status from the result\nconst httpStatus = setDefaultResult.json?.statusCode || 200;\nconst success = httpStatus >= 200 && httpStatus < 300;\n\nif (success) {\n  console.log(`✅ Schedule ${prevData.schedule_id} set as default`);\n} else {\n  console.warn(`⚠️ Failed to set schedule as default: ${JSON.stringify(setDefaultResult.json)}`);\n}\n\nreturn [{\n  json: {\n    ...prevData,\n    schedule_is_default: success,\n    schedule_default_message: success ? 'Schedule set as default' : 'Failed to set as default'\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/finalize-schedule.js}}"
       },
       "id": "finalize-schedule",
       "name": "Finalize Schedule",
@@ -261,7 +261,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Skip setting default - just pass through\nconst prevData = $input.first().json;\nconsole.log(`ℹ️ Skipping set-default (schedule_id: ${prevData.schedule_id || 'none'}, set_as_default: ${prevData.schedule_set_as_default})`);\nreturn [{ json: { ...prevData, schedule_is_default: prevData.schedule_is_default || false } }];"
+        "jsCode": "{{INJECT:scripts/phase1/skip-set-default.js}}"
       },
       "id": "skip-set-default",
       "name": "Skip Set Default",
@@ -274,7 +274,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge schedule branch results and continue to mailbox processing\n// This node receives from either the schedule creation branch or the skip branch\nconst scheduleResult = $input.first().json;\n\nconsole.log('📅 Schedule management complete:');\nconsole.log(`   - Action: ${scheduleResult.schedule_action || 'skipped'}`);\nconsole.log(`   - ID: ${scheduleResult.schedule_id || 'none'}`);\nconsole.log(`   - Is Default: ${scheduleResult.schedule_is_default || false}`);\nconsole.log(`   - Message: ${scheduleResult.schedule_message || 'No schedule configured'}`);\n\n// Pass the full config to the mailbox processing branch\nreturn [{ json: scheduleResult }];"
+        "jsCode": "{{INJECT:scripts/phase1/schedule-complete.js}}"
       },
       "id": "schedule-complete",
       "name": "Schedule Complete",
@@ -287,7 +287,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract configuration from workflow execution data\nconst executionData = $input.first().json;\n\n// Check if data was passed via workflow fields\nconst config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;\n\nconst workspaceId = config.reply_workspace_id || 'default-workspace';\n// Check both mailbox_csv_content AND data fields\nconst mailboxCsv = config.mailbox_csv_content || config.data || '';\nconst sendingLimits = config.sending_limits || { daily: 50, hourly: 10 };\nconst forceOverwrite = config.force_overwrite || false;\nconst companyName = config.company_name || 'Test Company';\n\nconsole.log('Parse CSV - mailboxCsv length:', mailboxCsv.length);\nconsole.log('Parse CSV - first 100 chars:', mailboxCsv.substring(0, 100));\n\n// If no CSV content, return mock data for testing\nif (!mailboxCsv || mailboxCsv.trim() === '') {\n  return [{ json: {\n    email: 'test@example.com',\n    senderName: 'Test User',\n    firstName: 'Test',\n    lastName: 'User',\n    domain: 'example.com',\n    displayName: 'Test',\n    dailyLimit: 50,\n    smtp: { host: 'smtp.example.com', port: 587, password: 'test' },\n    imap: { host: 'imap.example.com', port: 993, password: 'test' },\n    warmup: { dailyGoal: 20, dailyIncrement: 2 },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: 2,\n    _isMockData: true\n  }}];\n}\n\n// Parse CSV manually (csv-parse not available in n8n)\nconst lines = mailboxCsv.trim().split('\\n');\nconst headers = lines[0].split(',').map(h => h.trim());\nconst records = [];\n\nfor (let i = 1; i < lines.length; i++) {\n  const values = lines[i].split(',').map(v => v.trim());\n  const record = {};\n  headers.forEach((header, idx) => {\n    record[header] = values[idx] || '';\n  });\n  records.push(record);\n}\n\n// Transform records\nconst mailboxes = records.map((record, index) => {\n  // Parse name\n  const nameParts = (record['Sender Name'] || '').trim().split(/\\s+/);\n  const firstName = nameParts[0] || '';\n  const lastName = nameParts.slice(1).join(' ') || '';\n  \n  // Extract domain\n  const domain = record.Email.match(/@(.+)$/)?.[1] || '';\n  \n  return {\n    email: record.Email.trim().toLowerCase(),\n    senderName: record['Sender Name'],\n    firstName,\n    lastName,\n    domain,\n    displayName: firstName, // Use first name only\n    dailyLimit: parseInt(record['Daily Limit']) || 50,\n    smtp: {\n      host: record['SMTP Host'] || '',\n      port: parseInt(record['SMTP Port']) || 587,\n      password: record['SMTP Password'] || ''\n    },\n    imap: {\n      host: record['IMAP Host'] || '',\n      port: parseInt(record['IMAP Port']) || 993,\n      password: record['IMAP Password'] || ''\n    },\n    warmup: {\n      dailyGoal: parseInt(record['Warmup Daily Goal']) || 20,\n      dailyIncrement: parseInt(record['Warmup Daily Increment']) || 2\n    },\n    workspaceId,\n    forceOverwrite,\n    companyName,\n    rowNumber: index + 2\n  };\n});\n\nreturn mailboxes.map(m => ({ json: m }));"
+        "jsCode": "{{INJECT:scripts/phase1/parse-csv.js}}"
       },
       "id": "parse-csv",
       "name": "Parse CSV",
@@ -327,7 +327,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if mailbox already exists and should skip or update\n// Also detect 401/403 auth errors from Reply.io API\nconst parseItems = $('Parse CSV').all();\nconst checkMailboxItems = $('Check Mailbox Exists').all();\nconst startData = $('Start').first().json;\nconst config = startData.inputData ? JSON.parse(startData.inputData) : startData;\nconst taskId = config.task_id;\n\n// Get existing accounts - n8n splits array responses into individual items\nconst existingAccounts = checkMailboxItems.map(item => item.json);\n\n// ============================================================\n// CHECK FOR REPLY.IO AUTH ERRORS (401/403)\n// ============================================================\nconst firstResponse = existingAccounts[0] || {};\nif (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.statusCode === 403 || \n    firstResponse.message?.includes('Unauthorized') || firstResponse.message?.includes('Forbidden')) {\n  \n  const errorMsg = firstResponse.error?.message || firstResponse.message || firstResponse.error || 'Authentication failed';\n  const statusCode = firstResponse.statusCode || firstResponse.error?.statusCode || 'unknown';\n  \n  console.error(`\u274c Reply.io Auth Error (${statusCode}): ${errorMsg}`);\n  \n  // Try to post error comment to ClickUp\n  if (taskId && taskId !== 'unknown') {\n    try {\n      await this.helpers.request({\n        method: 'POST',\n        uri: `https://api.clickup.com/api/v2/task/${taskId}/comment`,\n        headers: {\n          'Authorization': HARDCODED_CLICKUP_API_KEY,\n          'Content-Type': 'application/json'\n        },\n        body: {\n          comment_text: `\ud83d\udea8 **Authentication Error - Reply.io API**\\n\\n**Error Code:** ${statusCode}\\n**Message:** ${errorMsg}\\n\\n**Action Required:**\\n1. Verify the Reply.io API key is valid\\n2. Check if the API key has the correct permissions\\n3. Update the API key in the n8n workflow\\n\\n**API Endpoint:** GET /v1/EmailAccounts\\n**Current API Key (last 8 chars):** ...${HARDCODED_REPLY_API_KEY.slice(-8)}`\n        },\n        json: true\n      });\n      console.log('\u2705 Posted Reply.io auth error comment to ClickUp');\n    } catch (commentError) {\n      console.error('Failed to post error comment:', commentError.message);\n    }\n  }\n  \n  throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);\n}\n// ============================================================\n\nconsole.log(`Found ${existingAccounts.length} existing email accounts in Reply.io`);\n\n// Process each mailbox from Parse CSV\nconst results = parseItems.map((item, index) => {\n  const currentEmail = item.json.email;\n  const desiredDisplayName = item.json.displayName;\n  const forceOverwrite = item.json.forceOverwrite;\n  \n  // Find existing mailbox data\n  const existingMailbox = existingAccounts.find(acc => \n    acc.emailAddress && acc.emailAddress.toLowerCase() === currentEmail.toLowerCase()\n  );\n  \n  const emailExists = !!existingMailbox;\n  const currentSenderName = existingMailbox ? existingMailbox.senderName : '';\n  const senderNameDiffers = currentSenderName !== desiredDisplayName;\n  \n  // Should update if: exists AND (forceOverwrite OR senderName differs)\n  const shouldUpdate = emailExists && (forceOverwrite || senderNameDiffers);\n  \n  // Should skip if: exists AND NOT updating\n  const shouldSkip = emailExists && !shouldUpdate;\n  \n  console.log(`Email ${currentEmail}: exists=${emailExists}, current=\"${currentSenderName}\", desired=\"${desiredDisplayName}\", differs=${senderNameDiffers}, forceOverwrite=${forceOverwrite}, shouldUpdate=${shouldUpdate}, shouldSkip=${shouldSkip}`);\n  \n  return {\n    json: {\n      ...item.json,\n      emailExists,\n      currentSenderName,\n      senderNameDiffers,\n      shouldUpdate,\n      shouldSkip,\n      existingAccountsCount: existingAccounts.length,\n      existingMailboxId: existingMailbox ? existingMailbox.id : null,\n      task_id: taskId\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/should-skip.js}}"
       },
       "id": "should-skip",
       "name": "Should Skip?",
@@ -447,7 +447,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mark updated mailboxes\nconst apiResponses = $input.all();\nconst originalMailboxes = $('Should Update?', 0).all(); // Get data from Should Update? node's YES output\n\nconst results = apiResponses.map((apiItem, index) => {\n  const apiResponse = apiItem.json;\n  const originalData = originalMailboxes[index] ? originalMailboxes[index].json : {};\n  \n  console.log('=== UPDATE RESPONSE ===');\n  console.log('Email:', originalData.email);\n  console.log('Response ID:', apiResponse.id);\n  console.log('=======================');\n  \n  return {\n    json: {\n      ...originalData,\n      id: apiResponse.id || originalData.existingMailboxId,\n      updated: !!apiResponse.id,\n      action: 'updated',\n      api_response: apiResponse\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/mark-updated.js}}"
       },
       "id": "mark-updated",
       "name": "Mark as Updated",
@@ -461,7 +461,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Mark truly skipped mailboxes (no update needed)\nconst items = $input.all();\n\nconst results = items.map(item => {\n  return {\n    json: {\n      ...item.json,\n      action: 'skipped',\n      skipped: true\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/mark-skipped.js}}"
       },
       "id": "mark-skipped",
       "name": "Mark as Skipped",
@@ -519,7 +519,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge Create Email Account API response with original mailbox data\nconst apiResponses = $input.all();\nconst originalMailboxes = $('Skip?', 1).all(); // Get data from Skip? node's output 1 (create path)\n\nconst results = apiResponses.map((apiItem, index) => {\n  const apiResponse = apiItem.json;\n  const originalData = originalMailboxes[index] ? originalMailboxes[index].json : {};\n  \n  // LOG FULL API RESPONSE FOR DEBUGGING\n  console.log('=== REPLY.IO API RESPONSE ===' );\n  console.log('Email:', originalData.email);\n  console.log('Full Response:', JSON.stringify(apiResponse, null, 2));\n  console.log('Has ID:', !!apiResponse.id);\n  console.log('Has Error:', !!apiResponse.error);\n  if (apiResponse.error) {\n    console.log('Error Status:', apiResponse.error.status);\n    console.log('Error Message:', apiResponse.error.message);\n    console.log('Error Stack:', apiResponse.error.stack?.substring(0, 200));\n  }\n  console.log('==============================');\n  \n  return {\n    json: {\n      ...originalData, // Keep all original mailbox data\n      id: apiResponse.id || apiResponse.emailAccountId,\n      created: !!apiResponse.id, // If ID exists in response, it was created\n      action: 'created',\n      api_response: apiResponse\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/merge-account-data.js}}"
       },
       "id": "merge-account-data",
       "name": "Merge Account Data",
@@ -600,7 +600,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Filter out failed items that now exist\nconst failedItems = $('Detect Failed Creations', 1).all();\nconst existingMailboxes = $input.all(); // Each item is one mailbox\n\n// Extract existing email addresses\nconst existingEmails = existingMailboxes\n  .map(item => item.json.emailAddress?.toLowerCase())\n  .filter(Boolean);\n\nconsole.log(`Re-check: Found ${existingEmails.length} existing mailboxes`);\nconsole.log(`Existing emails: ${existingEmails.slice(0, 5).join(', ')}...`);\n\n// Filter out items that now exist\nconst itemsToRetry = failedItems.filter(item => {\n  const email = item.json.email?.toLowerCase();\n  const alreadyExists = existingEmails.includes(email);\n  if (alreadyExists) {\n    console.log(`\u2713 Skipping retry for ${item.json.email} - already created`);\n  }\n  return !alreadyExists;\n});\n\nconsole.log(`\u2192 Retrying ${itemsToRetry.length} out of ${failedItems.length} failed mailboxes`);\n\nif (itemsToRetry.length === 0) {\n  console.log('All failed mailboxes now exist - no retries needed!');\n  return [];\n}\n\nreturn itemsToRetry;"
+        "jsCode": "{{INJECT:scripts/phase1/filter-retries.js}}"
       },
       "id": "filter-retries",
       "name": "Filter Items To Retry",
@@ -663,7 +663,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge retry results with original mailbox data\nconst retryResponses = $input.all();\nconst failedMailboxes = $('Detect Failed Creations', 1).all();\n\nconst results = retryResponses.map((retryItem, index) => {\n  const retryResponse = retryItem.json;\n  const originalData = failedMailboxes[index] ? failedMailboxes[index].json : {};\n  \n  // LOG RETRY RESPONSE FOR DEBUGGING\n  console.log('=== RETRY ATTEMPT RESPONSE ===');\n  console.log('Email:', originalData.email);\n  console.log('Retry Response:', JSON.stringify(retryResponse, null, 2));\n  console.log('Retry Successful:', !!retryResponse.id);\n  if (retryResponse.error) {\n    console.log('Retry Error Status:', retryResponse.error.status);\n    console.log('Retry Error Message:', retryResponse.error.message);\n  }\n  console.log('==============================');\n  \n  return {\n    json: {\n      ...originalData,\n      id: retryResponse.id || retryResponse.emailAccountId,\n      created: !!retryResponse.id,\n      api_response: retryResponse,\n      retried: true,\n      retry_successful: !!retryResponse.id\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/merge-retry-results.js}}"
       },
       "id": "merge-retry-results",
       "name": "Merge Retry Results",
@@ -691,7 +691,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Pass through mailbox data without applying limits (limits endpoint removed)\nconst items = $input.all();\n\nreturn items.map(item => ({\n  json: {\n    ...item.json,\n    limits_applied: false,\n    limits_skipped_reason: 'Limits API disabled'\n  }\n}));"
+        "jsCode": "{{INJECT:scripts/phase1/prepare-limits.js}}"
       },
       "id": "prepare-limits",
       "name": "Prepare Sending Limits",
@@ -769,7 +769,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Merge limits result with mailbox data - process ALL items\nconst limitsResponses = $input.all();\nconst mailboxes = $('Prepare Sending Limits').all();\n\n// Match each limits response with its corresponding mailbox by index\nconst results = limitsResponses.map((limitsItem, index) => {\n  const limitsResponse = limitsItem.json;\n  const mailboxData = mailboxes[index] ? mailboxes[index].json : {};\n  \n  let limitsApplied = false;\n  let limitsError = '';\n  \n  if (limitsResponse.error) {\n    // Convert error to string if it's an object\n    const errorStr = typeof limitsResponse.error === 'string' ? limitsResponse.error : JSON.stringify(limitsResponse.error);\n    limitsError = errorStr;\n    // Check for 404 errors (endpoint not available)\n    if (errorStr.includes('404')) {\n      limitsError = 'Endpoint not available';\n    }\n    // Check for auth errors\n    else if (errorStr.includes('401') || errorStr.includes('403')) {\n      limitsError = '\ud83d\udd12 Authentication failed - Please update Reply.io API key in ClickUp';\n    } else if (errorStr.includes('429')) {\n      limitsError = '\u23f1\ufe0f Rate limit exceeded - Retries exhausted';\n    }\n  } else if (limitsResponse.statusCode && limitsResponse.statusCode >= 200 && limitsResponse.statusCode < 300) {\n    limitsApplied = true;\n  }\n  \n  return {\n    json: {\n      ...mailboxData,\n      limits_applied: limitsApplied,\n      limits_error: limitsError\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/merge-limits-result.js}}"
       },
       "id": "merge-limits-result",
       "name": "Merge Limits Result",
@@ -834,7 +834,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate report for each mailbox operation\nconst items = $input.all();\n\nconst results = items.map(item => {\n  const data = item.json;\n  \n  let status, action, error;\n  \n  // Check if action was already set by update/create/skip nodes\n  if (data.action) {\n    action = data.action; // 'created', 'updated', 'skipped'\n    status = (action === 'skipped') ? 'skipped' : 'success';\n    error = (action === 'skipped') ? 'Already exists, no changes needed' : '';\n  } else if (data.error) {\n    status = 'error';\n    action = 'failed';\n    error = data.error;\n  } else if (data.id || data.emailAccountId) {\n    status = 'success';\n    action = data.created ? 'created' : (data.updated ? 'updated' : 'unknown');\n    if (data.retried && data.retry_successful) {\n      action = 'created (retry)';\n    }\n    error = '';\n  } else {\n    status = 'unknown';\n    action = 'unknown';\n    error = data.api_response?.error?.message || 'Unexpected response';\n  }\n  \n  // Hide limits error if it's just endpoint not available\n  const limitsError = data.limits_error === 'Endpoint not available' ? '' : (data.limits_error || '');\n  \n  return {\n    json: {\n      email: data.email,\n      status,\n      action,\n      displayName: data.display_name || data.displayName,\n      limits_applied: data.limits_applied || false,\n      limits_error: limitsError,\n      error,\n      retried: data.retried || false,\n      timestamp: new Date().toISOString()\n    }\n  };\n});\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/phase1/generate-report.js}}"
       },
       "id": "generate-report",
       "name": "Generate Report",
@@ -848,7 +848,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate CSV report manually (csv-stringify not available)\nconst items = $input.all();\n\nconst records = items.map(item => ({\n  Email: item.json.email,\n  Status: item.json.status,\n  Action: item.json.action,\n  DisplayName: item.json.displayName,\n  LimitsApplied: item.json.limits_applied ? 'Yes' : 'No',\n  LimitsError: item.json.limits_error || '',\n  Error: item.json.error || '',\n  Timestamp: item.json.timestamp\n}));\n\n// Create CSV manually\nconst headers = ['Email', 'Status', 'Action', 'Display Name', 'Limits Applied', 'Limits Error', 'Error', 'Timestamp'];\nconst csvLines = [headers.join(',')];\nrecords.forEach(r => {\n  const errorText = String(r.Error || '').replace(/,/g, ';');\n  const limitsError = String(r.LimitsError || '').replace(/,/g, ';');\n  csvLines.push([\n    r.Email,\n    r.Status,\n    r.Action,\n    r.DisplayName,\n    r.LimitsApplied,\n    limitsError,\n    errorText,\n    r.Timestamp\n  ].join(','));\n});\nconst csv = csvLines.join('\\n');\n\n// Generate summary statistics\nconst total = items.length;\nconst created = items.filter(i => i.json.action === 'created').length;\nconst updated = items.filter(i => i.json.action === 'updated').length;\nconst skipped = items.filter(i => i.json.status === 'skipped').length;\nconst failed = items.filter(i => i.json.status === 'error').length;\nconst limitsApplied = items.filter(i => i.json.limits_applied === true).length;\n\nreturn [{\n  json: {\n    phase: 'Phase 1: Import & Hygiene',\n    total_processed: total,\n    created_count: created,\n    updated_count: updated,\n    skipped_count: skipped,\n    failed_count: failed,\n    limits_applied_count: limitsApplied,\n    reply_workspace_id: items[0]?.json.workspaceId || 'default-workspace',\n    csv_report: csv,\n    summary: {\n      total,\n      created,\n      updated,\n      skipped,\n      failed,\n      limitsApplied,\n      successRate: total > 0 ? ((created + updated) / total * 100).toFixed(2) + '%' : '0%'\n    },\n    results: items.map(i => i.json)\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/create-csv.js}}"
       },
       "id": "create-csv",
       "name": "Create CSV Report",
@@ -862,7 +862,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Prepare CSV as binary data for upload\nconst data = $input.first().json;\nconst csvContent = data.csv_report || 'No data';\nconst taskId = $('Start').first().json.task_id;\n\n// Convert CSV to base64 for binary transfer\nconst base64Content = Buffer.from(csvContent, 'utf8').toString('base64');\n\nreturn [{\n  json: {\n    task_id: taskId,\n    summary: data.summary,\n    csv: data.csv_report,\n    phase: data.phase\n  },\n  binary: {\n    data: {\n      data: base64Content,\n      mimeType: 'text/csv',\n      fileName: 'phase1_import_hygiene.csv'\n    }\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/prepare-csv-binary.js}}"
       },
       "id": "prepare-csv-binary",
       "name": "Prepare CSV Binary",
@@ -920,7 +920,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Generate Phase 1 completion comment\n// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)\nconst data = $('Prepare CSV Binary').first().json;\nconst summary = data.summary;\n\n// Get schedule info from Schedule Complete node\nlet scheduleInfo = '';\ntry {\n  const scheduleData = $('Schedule Complete').first().json;\n  if (scheduleData.schedule_id) {\n    scheduleInfo = `\\n**Sending Schedule:**\\n- Name: ${scheduleData.schedule_config?.name || 'N/A'}\\n- ID: ${scheduleData.schedule_id}\\n- Is Default: ${scheduleData.schedule_is_default ? 'Yes' : 'No'}\\n- Status: ${scheduleData.schedule_message || 'Created'}\\n`;\n  } else if (scheduleData.schedule_skipped) {\n    scheduleInfo = '\\n**Sending Schedule:** Not configured\\n';\n  }\n} catch (e) {\n  scheduleInfo = '';\n}\n\nconst comment = `✅ **Phase 1: Import & Hygiene Complete**\\n${scheduleInfo}\\nMailboxes processed: ${summary.total}\\n- Created: ${summary.created}\\n- Updated: ${summary.updated}\\n- Skipped: ${summary.skipped}\\n- Failed: ${summary.failed}\\n- Limits Applied: ${summary.limitsApplied}\\n- Success rate: ${summary.successRate}\\n\\n${summary.failed > 0 ? '⚠️ Some mailboxes failed to process. See attached CSV for details.\\n\\n' : ''}📎 Report attached: phase1_import_hygiene.csv`;\n\nreturn [{ json: { task_id: data.task_id, comment } }];"
+        "jsCode": "{{INJECT:scripts/phase1/prepare-comment.js}}"
       },
       "id": "prepare-comment",
       "name": "Prepare Comment",
@@ -975,7 +975,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Return mailboxes data to orchestrator for Phase 3 sequence assignment\nconst allResults = $('Combine All Results').all();\n\n// Extract successfully created/existing mailboxes with id and email\nconst mailboxes = allResults\n  .map(item => item.json)\n  .filter(m => m.id && m.email && !m.error)\n  .map(m => ({\n    id: m.id,\n    email: m.email,\n    senderName: m.senderName || m.displayName\n  }));\n\nconsole.log(`Returning ${mailboxes.length} mailboxes to orchestrator`);\n\nreturn [{\n  json: {\n    mailboxes,\n    mailbox_count: mailboxes.length\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/phase1/return-mailboxes.js}}"
       },
       "id": "return-mailboxes",
       "name": "Return Mailboxes",
