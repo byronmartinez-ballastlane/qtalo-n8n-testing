@@ -8,8 +8,8 @@ set -e
 AWS_PROFILE="${AWS_PROFILE:-bla}"
 AWS_REGION="${AWS_REGION:-us-east-1}"
 SECRET_NAME="n8n/clients/qtalo/jwt-signing-secret"
-API_GATEWAY_URL="https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod"
-API_KEY="3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+API_GATEWAY_URL="https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod"
+API_KEY="6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv"
 N8N_INSTANCE_URL="${N8N_INSTANCE_URL:-https://qtalospace.app.n8n.cloud}"
 
 echo "=========================================="

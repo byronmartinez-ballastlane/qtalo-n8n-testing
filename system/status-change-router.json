@@ -141,7 +141,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $('Parse Webhook').first().json.task_id }}",
+        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $('Parse Webhook').first().json.task_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -152,7 +152,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+              "value": "6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv"
             }
           ]
         },
@@ -318,7 +318,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -333,7 +333,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj"
+              "value": "6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv"
             }
           ]
         },

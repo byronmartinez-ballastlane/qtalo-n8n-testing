@@ -46,9 +46,9 @@ The JWT authentication system provides:
 - **Purpose**: Rotates signing secret and updates n8n credential
 
 ### 4. API Gateway
-- **ID**: `zxn1hyal26`
-- **URL**: `https://zxn1hyal26.execute-api.us-east-1.amazonaws.com/prod`
-- **API Key**: `3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj`
+- **ID**: `r81lwr2etg`
+- **URL**: `https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod`
+- **API Key**: `6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv`
 
 ## n8n Setup Instructions
 
@@ -129,7 +129,7 @@ Add headers to your API Gateway calls:
   "headerParameters": {
     "parameters": [
       { "name": "Authorization", "value": "=Bearer {{ $json.token }}" },
-      { "name": "x-api-key", "value": "3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj" }
+      { "name": "x-api-key", "value": "6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv" }
     ]
   }
 }
@@ -162,7 +162,7 @@ When deploying templates, replace these placeholders:
 | Placeholder | Description | Value |
 |-------------|-------------|-------|
 | `{{JWT_CREDENTIAL_ID}}` | n8n JWT credential ID | Your credential ID |
-| `{{API_GATEWAY_KEY}}` | API Gateway API key | `3fTQPitk0R8ZrD1lWt5gX7zAUqyuqwII2Gxf8Llj` |
+| `{{API_GATEWAY_KEY}}` | API Gateway API key | `6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv` |
 | `{{CLICKUP_CREDENTIAL_ID}}` | n8n ClickUp credential ID | Your credential ID |
 
 ## Troubleshooting

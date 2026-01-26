@@ -309,7 +309,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://oc05p6ctz7.execute-api.us-east-1.amazonaws.com/prod/update-signatures",
+        "url": "https://tvp0h6ee7g.execute-api.us-east-1.amazonaws.com/prod/update-signatures",
         "authentication": "none",
         "sendBody": true,
         "specifyBody": "json",
