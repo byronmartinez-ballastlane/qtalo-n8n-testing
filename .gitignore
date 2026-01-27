@@ -27,15 +27,8 @@ infrastructure/terraform/.terraform/
 *.zip
 
 # Files with secrets
-all-ssm-params.txt
-ssm-params.txt
-gyn-params.json
-gyn-params.sh
-scripts/jira-setup.js
-scripts/update-jira-assignees.js
 *.tfstate
 *.tfstate.backup
-# Deployed workflows (may contain credentials) - only templates should be tracked
 /workflows/
 clients/
 
