@@ -152,7 +152,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv"
+              "value": "={{ $vars.AWS_API_KEY }}"
             }
           ]
         },
@@ -333,7 +333,7 @@
             },
             {
               "name": "x-api-key",
-              "value": "6kzMCd0d7Z4TgMemJ2NCT4UF3SmYVR0O2azPpuRv"
+              "value": "={{ $vars.AWS_API_KEY }}"
             }
           ]
         },
