@@ -19,7 +19,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ATOMIC DEDUPLICATION using staticData\n// This runs IMMEDIATELY to prevent race conditions\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\n// Extract task ID and status for dedup key\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\nconst newStatus = statusChange?.after?.status?.toLowerCase() || '';\n\nif (!taskId || !newStatus) {\n  return [{ json: { ...webhookData, _dedupe_skip: false } }];\n}\n\nconst dedupKey = `${taskId}_${newStatus}`;\nconst staticData = $getWorkflowStaticData('global');\nconst locks = staticData.statusLocks || {};\nconst now = Date.now();\n\nconst LOCK_TTL_MS = 2 * 60 * 1000;\nfor (const [key, timestamp] of Object.entries(locks)) {\n  if (now - timestamp > LOCK_TTL_MS) {\n    delete locks[key];\n  }\n}\n\nif (locks[dedupKey]) {\n  const secondsAgo = ((now - locks[dedupKey]) / 1000).toFixed(1);\n  console.log(`🔒 DUPLICATE BLOCKED: ${dedupKey} is already being processed (locked ${secondsAgo}s ago)`);\n  return [{ json: { ...webhookData, _dedupe_skip: true, _dedupe_reason: `Locked ${secondsAgo}s ago` } }];\n}\n\nlocks[dedupKey] = now;\nstaticData.statusLocks = locks;\n\nconsole.log(`🔓 LOCK ACQUIRED: ${dedupKey}`);\nreturn [{ json: { ...webhookData, _dedupe_skip: false, _dedupe_key: dedupKey } }];"
+        "jsCode": "{{INJECT:scripts/system/router/acquire-dedup-lock.js}}"
       },
       "id": "dedupe-lock",
       "name": "Acquire Dedup Lock",
@@ -72,7 +72,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parse ClickUp webhook and extract task info\nconst webhookData = $input.first().json;\nconst body = webhookData.body || webhookData;\n\nconsole.log('📥 Received status change webhook');\n\nconst taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;\n\nif (!taskId) {\n  console.log('⚠️ No task ID found');\n  return [{ json: { skip: true, reason: 'No task ID' } }];\n}\n\nconst historyItems = body.history_items || [];\nconst statusChange = historyItems.find(h => h.field === 'status');\n\nif (!statusChange) {\n  console.log('⚠️ Not a status change event');\n  return [{ json: { skip: true, reason: 'Not a status change' } }];\n}\n\nconst newStatus = (statusChange.after?.status || '').toLowerCase();\nconst oldStatus = (statusChange.before?.status || '').toLowerCase();\n\nconst shouldTrigger = newStatus.includes('reply');\n\nif (!shouldTrigger) {\n  console.log(`⚠️ Status '${newStatus}' is not a trigger status (only 'reply' triggers)`);\n  return [{ json: { skip: true, reason: `Status '${newStatus}' not in trigger list` } }];\n}\n\nconsole.log(`✅ Status changed: ${oldStatus} → ${newStatus}`);\n\nreturn [{\n  json: {\n    skip: false,\n    task_id: taskId,\n    old_status: oldStatus,\n    new_status: newStatus\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/router/parse-webhook.js}}"
       },
       "id": "parse-webhook",
       "name": "Parse Webhook",
@@ -141,7 +141,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients?task_id={{ $('Parse Webhook').first().json.task_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients?task_id={{ $('Parse Webhook').first().json.task_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -170,7 +170,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if client was found\nconst taskId = $('Parse Webhook').first().json.task_id;\nconst response = $input.first().json;\n\nconsole.log('🔍 Lambda response:', JSON.stringify(response, null, 2));\n\nif (!response.exists || !response.client || !response.client.client_id) {\n  console.log(`❌ No client found for task_id: ${taskId}`);\n  return [{ json: { skip: true, reason: `No client found for task ${taskId}` } }];\n}\n\nconst client = response.client;\nconsole.log(`✅ Found client: ${client.client_name} (${client.client_id})`);\nconsole.log(`📋 Workflow IDs:`, client.workflow_ids);\n\nif (!client.workflow_ids || Object.keys(client.workflow_ids).length === 0) {\n  console.log('⚠️ Client has no workflow_ids - workflows may not have been deployed');\n}\n\nreturn [{\n  json: {\n    skip: false,\n    client_id: client.client_id,\n    client_name: client.client_name,\n    task_id: taskId,\n    workflow_ids: client.workflow_ids || {},\n    clickup_space_id: client.clickup_space_id,\n    status: client.status,\n    last_processed_status: client.last_processed_status\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/router/find-client-by-task-id.js}}"
       },
       "id": "find-client",
       "name": "Find Client by Task ID",
@@ -183,7 +183,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Smart status tracking with execution locking to prevent duplicates\nconst client = $input.first().json;\nconst webhookData = $('Parse Webhook').first().json;\nconst newStatus = webhookData.new_status;\nconst oldStatus = webhookData.old_status;\nconst lastProcessedStatus = client.last_processed_status;\nconst lastExecutionTimestamp = client.last_execution_timestamp;\n\nconsole.log(`📊 Status Change: ${oldStatus} → ${newStatus}`);\nconsole.log(`📌 Last Processed: ${lastProcessedStatus || 'none'}`);\nconsole.log(`⏰ Last Execution: ${lastExecutionTimestamp || 'none'}`);\n\nif (lastProcessedStatus === newStatus && lastExecutionTimestamp) {\n  const lastExecTime = new Date(lastExecutionTimestamp).getTime();\n  const now = Date.now();\n  const secondsSinceLastExec = (now - lastExecTime) / 1000;\n  \n  if (secondsSinceLastExec < 60) {\n    console.log(`⏭️ Status '${newStatus}' was processed ${secondsSinceLastExec.toFixed(1)}s ago - skipping duplicate`);\n    return [{ json: { ...client, skip: true, reason: `Duplicate: processed ${secondsSinceLastExec.toFixed(1)}s ago` } }];\n  }\n}\n\nconst STATUS_ORDER = ['not started', 'onboarding', 'reply', 'campaign live', 'complete'];\nconst newIndex = STATUS_ORDER.indexOf(newStatus);\nconst lastIndex = STATUS_ORDER.indexOf(lastProcessedStatus);\n\nif (lastProcessedStatus && newIndex >= 0 && lastIndex >= 0 && newIndex < lastIndex) {\n  if (newStatus === 'reply') {\n    console.log(`↩️ Returning to REPLY status - allowing execution`);\n    return [{ json: { ...client, skip: false } }];\n  } else {\n    console.log(`⬅️ Backwards status change detected (${lastProcessedStatus} → ${newStatus}) - skipping`);\n    return [{ json: { ...client, skip: true, reason: `Backwards change to '${newStatus}' not allowed` } }];\n  }\n}\n\nconsole.log(`✅ Forward progression or first execution - proceeding`);\nreturn [{ json: { ...client, skip: false } }];"
+        "jsCode": "{{INJECT:scripts/system/router/check-status-progression.js}}"
       },
       "id": "check-last-execution",
       "name": "Check Status Progression",
@@ -228,7 +228,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $json.task_id }}/comment",
+        "url": "={{CLICKUP_API_URL}}/task/{{ $json.task_id }}/comment",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -242,7 +242,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"comment_text\": \"🚀 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
+        "jsonBody": "={\n  \"comment_text\": \"\ud83d\ude80 **Reply.io Setup Started**\\n\\n**Client:** {{ $json.client_name }}\\n**Triggered by:** Status change to REPLY\\n\\nTriggering the Main Orchestrator workflow...\"\n}",
         "options": {}
       },
       "id": "post-start-comment",
@@ -256,14 +256,14 @@
       "continueOnFail": true,
       "credentials": {
         "httpHeaderAuth": {
-          "id": "KQ4DCkxv3kBoRgK1",
+          "id": "{{CLICKUP_SYSTEM_CREDENTIAL_ID}}",
           "name": "System ClickUp API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Prepare data for the Orchestrator workflow\nconst statusData = $('Check Status Progression').first().json;\n\nreturn [{\n  json: {\n    task_id: statusData.task_id,\n    client_id: statusData.client_id,\n    client_name: statusData.client_name,\n    workflow_ids: statusData.workflow_ids,\n    new_status: $('Parse Webhook').first().json.new_status\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/router/prepare-orchestrator-data.js}}"
       },
       "id": "prepare-orchestrator-data",
       "name": "Prepare Orchestrator Data",
@@ -318,7 +318,7 @@
     {
       "parameters": {
         "method": "PUT",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Check Status Progression').first().json.client_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/{{ $('Check Status Progression').first().json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -355,7 +355,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
+        "url": "={{CLICKUP_API_URL}}/task/{{ $('Find Client by Task ID').first().json.task_id }}/comment",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -369,7 +369,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"comment_text\": \"✅ **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
+        "jsonBody": "={\n  \"comment_text\": \"\u2705 **Reply.io Setup Complete!**\\n\\n**Client:** {{ $('Find Client by Task ID').first().json.client_name }}\\n\\nThe Main Orchestrator has completed all phases.\"\n}",
         "options": {}
       },
       "id": "post-complete-comment",
@@ -383,7 +383,7 @@
       "continueOnFail": true,
       "credentials": {
         "httpHeaderAuth": {
-          "id": "KQ4DCkxv3kBoRgK1",
+          "id": "{{CLICKUP_SYSTEM_CREDENTIAL_ID}}",
           "name": "System ClickUp API"
         }
       }

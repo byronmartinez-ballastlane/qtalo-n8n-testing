@@ -35,7 +35,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/by-task/{{ $json.body.task_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/by-task/{{ $json.body.task_id }}",
         "authentication": "none",
         "options": {},
         "sendHeaders": true,
@@ -65,7 +65,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Check if task exists and set routing flag\nconst data = $input.first().json;\nconst exists = data.exists === true;\n\n// Return item with explicit isNew flag\nreturn [{\n  json: {\n    ...data,\n    isNew: !exists\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/task-already-onboarded.js}}"
       }
     },
     {
@@ -125,7 +125,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/claim/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/claim/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
         "authentication": "none",
         "sendBody": true,
         "contentType": "json",
@@ -159,7 +159,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Check if claim was successful\nconst data = $input.first().json;\nconst claimed = data.claimed === true;\n\n// Return item with explicit claimSuccess flag\nreturn [{\n  json: {\n    ...data,\n    claimSuccess: claimed\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/check-claim-result.js}}"
       }
     },
     {
@@ -220,7 +220,7 @@
       "parameters": {
         "mode": "runOnceForAllItems",
         "language": "javaScript",
-        "jsCode": "// Check if status is \"onboarding\" (case-insensitive)\nconst body = $input.first().json.body || {};\nconst historyItems = body.history_items || [];\nconst newStatus = (historyItems[0]?.after?.status || '').toLowerCase();\n\nconsole.log('Status check - new status:', newStatus);\n\nif (newStatus === 'onboarding') {\n  // TRUE - proceed with onboarding\n  return [{ json: { ...$input.first().json, isOnboarding: true } }];\n} else {\n  // FALSE - skip, will be routed to skip response\n  return [{ json: { ...$input.first().json, isOnboarding: false } }];\n}"
+        "jsCode": "{{INJECT:scripts/system/onboarding/check-if-onboarding-status.js}}"
       }
     },
     {
@@ -234,14 +234,14 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
+        "url": "={{CLICKUP_API_URL}}/task/{{ $('Webhook: Onboard Client').item.json.body.task_id }}",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "options": {}
       },
       "credentials": {
         "httpHeaderAuth": {
-          "id": "KQ4DCkxv3kBoRgK1",
+          "id": "{{CLICKUP_SYSTEM_CREDENTIAL_ID}}",
           "name": "System ClickUp API"
         }
       }
@@ -256,7 +256,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Extract custom fields from ClickUp task\nconst task = $input.first().json;\nconst customFields = task.custom_fields || [];\n\n// UUID v4 generator\nfunction generateUUID() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\n// Extract field value by NAME (case-insensitive) - works across all tasks/lists\nconst getFieldByName = (name) => {\n  const field = customFields.find(f => \n    f.name.toLowerCase().trim() === name.toLowerCase().trim()\n  );\n  return field?.value || '';\n};\n\n// Get field ID by name for later updates\nconst getFieldIdByName = (name) => {\n  const field = customFields.find(f => \n    f.name.toLowerCase().trim() === name.toLowerCase().trim()\n  );\n  return field?.id || '';\n};\n\n// Extract values by field NAME\nconst companyName = getFieldByName('company_name');\nconst companyUrl = getFieldByName('company_url');\nconst replyApiKey = getFieldByName('Reply API Key');\nconst replyUser = getFieldByName('Reply User');\nconst replyPassword = getFieldByName('Reply Password');\nconst clickupApiKey = getFieldByName('Client ClickUp API Key');\nconst replyWorkspaceId = getFieldByName('reply_workspace_id');\nconst clientIdFieldId = getFieldIdByName('Client ID');\n\n// Validate required fields\nif (!replyApiKey || !replyUser || !replyPassword || !clickupApiKey) {\n  throw new Error(`Missing required fields. Found: Reply API Key=${!!replyApiKey}, Reply User=${!!replyUser}, Reply Password=${!!replyPassword}, Client ClickUp API Key=${!!clickupApiKey}`);\n}\n\n// Generate client_id\nconst clientId = generateUUID();\n\n// Parse domain from company_url\n// Input: www.n8n-testing.com, https://www.example.com/path\n// Output: n8n-testing.com, example.com\nfunction parseDomain(url) {\n  if (!url) return null;\n  let domain = url.toLowerCase().trim();\n  domain = domain.replace(/^https?:\\/\\//, ''); // Remove protocol\n  domain = domain.replace(/^www\\./, '');        // Remove www.\n  domain = domain.split('/')[0];                // Remove path\n  domain = domain.split('?')[0];                // Remove query\n  domain = domain.split('#')[0];                // Remove hash\n  domain = domain.split(':')[0];                // Remove port\n  return domain || null;\n}\n\nconst expectedDomain = parseDomain(companyUrl);\nconst expectedDomains = expectedDomain ? [expectedDomain] : [];\n\nconsole.log('🆔 Generated client_id:', clientId);\nconsole.log('🌐 Company URL:', companyUrl, '→ Domain:', expectedDomain);\nconsole.log('🔒 Expected domains:', JSON.stringify(expectedDomains));\n\nreturn {\n  json: {\n    client_id: clientId,\n    client_id_field_id: clientIdFieldId,\n    client_name: companyName || task.name || clientId,\n    company_url: companyUrl,\n    expected_domains: expectedDomains,\n    reply_api_key: replyApiKey,\n    reply_io_user: replyUser,\n    reply_io_password: replyPassword,\n    clickup_api_key: clickupApiKey,\n    reply_workspace_id: replyWorkspaceId,\n    clickup_task_id: task.id,\n    github_owner: 'byronmartinez-ballastlane',\n    github_repo: 'qtalo-n8n-testing',\n    templates_path: 'templates'\n  }\n};"
+        "jsCode": "{{INJECT:scripts/system/onboarding/extract-client-info.js}}"
       }
     },
     {
@@ -270,7 +270,7 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $json.client_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/{{ $json.client_id }}",
         "authentication": "none",
         "options": {},
         "sendHeaders": true,
@@ -299,7 +299,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Check if client already exists and is active\nconst clientInfo = $('Extract Client Info').first().json;\nconst existingClient = $input.first().json;\n\n// If client exists and is active, skip onboarding\nif (existingClient.client_id && existingClient.status === 'active') {\n  console.log(`⏭️ Client ${clientInfo.client_id} already exists with status 'active' - skipping onboarding`);\n  return [{\n    json: {\n      ...clientInfo,\n      skip: true,\n      reason: 'Client already onboarded',\n      existing_client: existingClient\n    }\n  }];\n}\n\n// Client doesn't exist or is not active, proceed with onboarding\nconsole.log(`✅ Proceeding with onboarding for ${clientInfo.client_id}`);\nreturn [{\n  json: {\n    ...clientInfo,\n    skip: false\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/validate-client-status.js}}"
       }
     },
     {
@@ -343,7 +343,7 @@
         500
       ],
       "parameters": {
-        "jsCode": "const data = $input.first().json;\n\nreturn {\n  json: {\n    success: true,\n    message: 'Client already onboarded',\n    client_id: data.client_id,\n    client_name: data.client_name,\n    existing_client: data.existing_client\n  }\n};"
+        "jsCode": "{{INJECT:scripts/system/onboarding/build-already-onboarded-response.js}}"
       }
     },
     {
@@ -357,7 +357,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $(\"Should Onboard?\").first().json.client_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/{{ $(\"Should Onboard?\").first().json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -389,7 +389,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/credentials/{{ $('Extract Client Info').item.json.client_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/credentials/{{ $('Extract Client Info').item.json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -422,7 +422,7 @@
       "continueOnFail": true,
       "parameters": {
         "method": "POST",
-        "url": "=https://api.clickup.com/api/v2/task/{{ $('Extract Client Info').first().json.clickup_task_id }}/field/{{ $('Extract Client Info').first().json.client_id_field_id }}",
+        "url": "={{CLICKUP_API_URL}}/task/{{ $('Extract Client Info').first().json.clickup_task_id }}/field/{{ $('Extract Client Info').first().json.client_id_field_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -454,7 +454,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://qtalospace.app.n8n.cloud/api/v1/credentials",
+        "url": "{{N8N_API_URL}}/credentials",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -473,7 +473,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       }
@@ -489,7 +489,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://qtalospace.app.n8n.cloud/api/v1/credentials/{{ $('Create ClickUp Credential').item.json.id }}/transfer",
+        "url": "={{N8N_API_URL}}/credentials/{{ $('Create ClickUp Credential').item.json.id }}/transfer",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -508,7 +508,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       },
@@ -525,7 +525,7 @@
       ],
       "parameters": {
         "method": "POST",
-        "url": "https://qtalospace.app.n8n.cloud/api/v1/credentials",
+        "url": "{{N8N_API_URL}}/credentials",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -544,7 +544,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       }
@@ -560,7 +560,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://qtalospace.app.n8n.cloud/api/v1/credentials/{{ $('Create Reply Credential').item.json.id }}/transfer",
+        "url": "={{N8N_API_URL}}/credentials/{{ $('Create Reply Credential').item.json.id }}/transfer",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -579,7 +579,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       },
@@ -595,7 +595,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Merge credential info with client info\nconst clientInfo = $('Extract Client Info').first().json;\nconst clickupCred = $('Create ClickUp Credential').first().json;\nconst replyCred = $('Create Reply Credential').first().json;\n\nreturn [{\n  json: {\n    ...clientInfo,\n    clickup_credential_id: clickupCred.id,\n    clickup_credential_name: clickupCred.name,\n    reply_credential_id: replyCred.id,\n    reply_credential_name: replyCred.name\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/merge-credential-info.js}}"
       }
     },
     {
@@ -624,7 +624,7 @@
       },
       "credentials": {
         "githubApi": {
-          "id": "Q6oSPWOEORCm73TJ",
+          "id": "{{GITHUB_CREDENTIAL_ID}}",
           "name": "GitHub API - Qtalo"
         }
       }
@@ -689,7 +689,7 @@
       },
       "credentials": {
         "githubApi": {
-          "id": "Q6oSPWOEORCm73TJ",
+          "id": "{{GITHUB_CREDENTIAL_ID}}",
           "name": "GitHub API - Qtalo"
         }
       }
@@ -704,7 +704,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Decode base64 content, inject external JS files, and inject client values for ALL templates\nconst clientInfo = $('Merge Credential Info').first().json;\nconst extractInfo = $('Extract Client Info').first().json;\nconst items = $input.all();\n\n// GitHub raw content URL base\nconst githubOwner = extractInfo.github_owner;\nconst githubRepo = extractInfo.github_repo;\nconst githubRawBase = `https://raw.githubusercontent.com/${githubOwner}/${githubRepo}/main`;\n\n// Cache for fetched JS files to avoid duplicate requests\nconst jsFileCache = {};\n\n// Helper function to fetch JS file content from GitHub\nasync function fetchJsFile(filePath) {\n  if (jsFileCache[filePath]) {\n    return jsFileCache[filePath];\n  }\n  \n  const url = `${githubRawBase}/${filePath}`;\n  console.log(`📥 Fetching JS file: ${url}`);\n  \n  try {\n    const response = await this.helpers.httpRequest({\n      method: 'GET',\n      url: url,\n      returnFullResponse: false\n    });\n    jsFileCache[filePath] = response;\n    return response;\n  } catch (error) {\n    console.error(`❌ Failed to fetch ${filePath}: ${error.message}`);\n    throw new Error(`Failed to fetch JS file: ${filePath}`);\n  }\n}\n\n// Find all {{INJECT:path}} placeholders in a string\nfunction findInjectPlaceholders(str) {\n  const regex = /\\{\\{INJECT:([^}]+)\\}\\}/g;\n  const matches = [];\n  let match;\n  while ((match = regex.exec(str)) !== null) {\n    matches.push({ placeholder: match[0], path: match[1] });\n  }\n  return matches;\n}\n\n// Process each template\nconst results = [];\nfor (const item of items) {\n  const base64Content = item.json.content;\n  const fileName = item.json.name;\n\n  // Decode base64\n  let jsonContent = Buffer.from(base64Content, 'base64').toString('utf8');\n  \n  // Find and replace all {{INJECT:path}} placeholders with actual JS content\n  const placeholders = findInjectPlaceholders(jsonContent);\n  console.log(`📋 Found ${placeholders.length} JS injection placeholders in ${fileName}`);\n  \n  for (const { placeholder, path } of placeholders) {\n    const jsContent = await fetchJsFile.call(this, path);\n    // Escape the JS content for JSON embedding (escape backslashes, quotes, newlines)\n    const escapedJs = jsContent\n      .replace(/\\\\/g, '\\\\\\\\')\n      .replace(/\"/g, '\\\\\"')\n      .replace(/\\n/g, '\\\\n')\n      .replace(/\\r/g, '\\\\r')\n      .replace(/\\t/g, '\\\\t');\n    jsonContent = jsonContent.replace(placeholder, escapedJs);\n    console.log(`✅ Injected ${path}`);\n  }\n  \n  let workflow = JSON.parse(jsonContent);\n\n  // Determine template type from filename\n  let templateKey = 'unknown';\n  if (fileName.includes('phase1')) templateKey = 'phase1';\n  else if (fileName.includes('phase2')) templateKey = 'phase2';\n  else if (fileName.includes('phase3')) templateKey = 'phase3';\n  else if (fileName.includes('orchestrator')) templateKey = 'orchestrator';\n\n  // Update workflow name\n  const clientIdLower = clientInfo.client_id.toLowerCase();\n  const clientIdUpper = clientInfo.client_id.toUpperCase().replace(/-/g, '_');\n  workflow.name = `${clientInfo.client_name} - ${workflow.name.replace(/^.*? - /, '')}`;\n\n  // Inject client values into nodes\n  workflow.nodes = workflow.nodes.map(node => {\n    if (node.parameters) {\n      let params = JSON.stringify(node.parameters);\n      // CLIENT_ID lowercase for AWS Secrets Manager lookups\n      params = params.replace(/\\{\\{CLIENT_ID\\}\\}/g, clientIdLower);\n      params = params.replace(/\\{\\{CLIENT_NAME\\}\\}/g, clientInfo.client_name);\n      params = params.replace(/\\$vars\\.CLIENT_REPLY_API_KEY/g, `$vars.${clientIdUpper}_REPLY_API_KEY`);\n      params = params.replace(/\\$vars\\.CLIENT_CLICKUP_API_KEY/g, `$vars.${clientIdUpper}_CLICKUP_API_KEY`);\n      node.parameters = JSON.parse(params);\n    }\n    \n    // Replace credential placeholders with actual credential IDs\n    if (node.credentials) {\n      for (const [key, value] of Object.entries(node.credentials)) {\n        if (value.id === '{{CLICKUP_CREDENTIAL_ID}}' || value.name === '{{CLICKUP_CREDENTIAL_NAME}}') {\n          value.id = clientInfo.clickup_credential_id;\n          value.name = clientInfo.clickup_credential_name;\n        }\n        if (value.id === '{{REPLY_CREDENTIAL_ID}}' || value.name === '{{REPLY_CREDENTIAL_NAME}}') {\n          value.id = clientInfo.reply_credential_id;\n          value.name = clientInfo.reply_credential_name;\n        }\n      }\n    }\n    \n    return node;\n  });\n\n  delete workflow.id;\n\n  results.push({\n    json: {\n      template_key: templateKey,\n      file_name: fileName,\n      workflow: workflow,\n      client_id: clientInfo.client_id,\n      client_name: clientInfo.client_name,\n      js_files_injected: placeholders.length\n    }\n  });\n}\n\nreturn results;"
+        "jsCode": "{{INJECT:scripts/system/onboarding/decode-inject-client-values.js}}"
       }
     },
     {
@@ -723,7 +723,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       }
@@ -739,7 +739,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.id }}/transfer",
+        "url": "={{N8N_API_URL}}/workflows/{{ $json.id }}/transfer",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -758,7 +758,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       },
@@ -774,7 +774,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "// Collect all created workflow IDs from the Create Workflow node\nconst createItems = $('Create Workflow in n8n').all();\nconst decodeItems = $('Decode & Inject Client Values').all();\nconst extractInfo = $('Extract Client Info').first().json;\n\nconst workflowIds = {};\nconst clientId = decodeItems[0]?.json.client_id;\nconst clientName = decodeItems[0]?.json.client_name;\n\ncreateItems.forEach((item, index) => {\n  const templateKey = decodeItems[index]?.json.template_key;\n  const workflowId = item.json.id;\n  \n  if (templateKey && workflowId) {\n    workflowIds[templateKey] = workflowId;\n  }\n});\n\nreturn [{\n  json: {\n    client_id: clientId,\n    client_name: clientName,\n    workflow_ids: workflowIds,\n    clickup_task_id: extractInfo.clickup_task_id\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/collect-workflow-ids.js}}"
       }
     },
     {
@@ -788,14 +788,14 @@
       ],
       "parameters": {
         "method": "GET",
-        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.workflow_ids.orchestrator }}",
+        "url": "={{N8N_API_URL}}/workflows/{{ $json.workflow_ids.orchestrator }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "options": {}
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       }
@@ -810,7 +810,7 @@
         200
       ],
       "parameters": {
-        "jsCode": "// Get the orchestrator workflow and inject Phase workflow IDs\nconst orchestratorWorkflow = $input.first().json;\nconst collectedIds = $('Collect Workflow IDs').first().json;\nconst workflowIds = collectedIds.workflow_ids;\n\n// Get the Phase workflow IDs\nconst phase1Id = workflowIds.phase1 || '';\nconst phase2Id = workflowIds.phase2 || '';\nconst phase3Id = workflowIds.phase3 || '';\n\nconsole.log('Injecting Phase IDs into Orchestrator:');\nconsole.log('- Phase 1:', phase1Id);\nconsole.log('- Phase 2:', phase2Id);\nconsole.log('- Phase 3:', phase3Id);\n\n// Update nodes that have placeholder workflow IDs\nconst updatedNodes = orchestratorWorkflow.nodes.map(node => {\n  if (node.parameters && node.parameters.workflowId) {\n    // Replace Phase workflow ID placeholders\n    if (node.parameters.workflowId === '{{PHASE1_WORKFLOW_ID}}' || node.name.includes('Phase 1')) {\n      node.parameters.workflowId = phase1Id;\n      console.log(`Updated ${node.name} with Phase 1 ID: ${phase1Id}`);\n    }\n    if (node.parameters.workflowId === '{{PHASE2_WORKFLOW_ID}}' || node.name.includes('Phase 2')) {\n      node.parameters.workflowId = phase2Id;\n      console.log(`Updated ${node.name} with Phase 2 ID: ${phase2Id}`);\n    }\n    if (node.parameters.workflowId === '{{PHASE3_WORKFLOW_ID}}' || node.name.includes('Phase 3')) {\n      node.parameters.workflowId = phase3Id;\n      console.log(`Updated ${node.name} with Phase 3 ID: ${phase3Id}`);\n    }\n  }\n  return node;\n});\n\n// Prepare updated workflow for API\nconst updatedWorkflow = {\n  name: orchestratorWorkflow.name,\n  nodes: updatedNodes,\n  connections: orchestratorWorkflow.connections,\n  settings: orchestratorWorkflow.settings || { executionOrder: 'v1' }\n};\n\nreturn [{\n  json: {\n    orchestrator_id: workflowIds.orchestrator,\n    updated_workflow: updatedWorkflow,\n    workflow_ids: workflowIds,\n    client_id: collectedIds.client_id,\n    client_name: collectedIds.client_name,\n    clickup_task_id: collectedIds.clickup_task_id\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/inject-phase-ids-to-orchestrator.js}}"
       }
     },
     {
@@ -824,7 +824,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://qtalospace.app.n8n.cloud/api/v1/workflows/{{ $json.orchestrator_id }}",
+        "url": "={{N8N_API_URL}}/workflows/{{ $json.orchestrator_id }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "n8nApi",
         "sendHeaders": true,
@@ -843,7 +843,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       }
@@ -858,7 +858,7 @@
         200
       ],
       "parameters": {
-        "jsCode": "// Pass through the collected data for activation step\nconst injectedData = $('Inject Phase IDs to Orchestrator').first().json;\n\nreturn [{\n  json: {\n    client_id: injectedData.client_id,\n    client_name: injectedData.client_name,\n    workflow_ids: injectedData.workflow_ids,\n    clickup_task_id: injectedData.clickup_task_id\n  }\n}];"
+        "jsCode": "{{INJECT:scripts/system/onboarding/prepare-for-activation.js}}"
       }
     },
     {
@@ -882,7 +882,7 @@
       },
       "credentials": {
         "n8nApi": {
-          "id": "EaOQcyWDYyvGbbr7",
+          "id": "{{N8N_CREDENTIAL_ID}}",
           "name": "n8n API - Qtalo"
         }
       },
@@ -899,7 +899,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "=https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod/clients/{{ $('Prepare for Activation').item.json.client_id }}",
+        "url": "={{AWS_API_GATEWAY_URL}}/clients/{{ $('Prepare for Activation').item.json.client_id }}",
         "authentication": "none",
         "sendHeaders": true,
         "headerParameters": {
@@ -1656,11 +1656,11 @@
       "createdAt": "2025-12-21T14:59:07.192Z",
       "role": "workflow:owner",
       "workflowId": "yMRb0i13knCpzGnF",
-      "projectId": "BFIDAvXOISVZh7tb",
+      "projectId": "{{N8N_PROJECT_ID}}",
       "project": {
         "updatedAt": "2025-11-20T14:41:38.000Z",
         "createdAt": "2025-11-20T14:41:32.806Z",
-        "id": "BFIDAvXOISVZh7tb",
+        "id": "{{N8N_PROJECT_ID}}",
         "name": "QTalo",
         "type": "team",
         "icon": {
@@ -1673,7 +1673,7 @@
             "updatedAt": "2025-11-20T14:41:32.808Z",
             "createdAt": "2025-11-20T14:41:32.808Z",
             "userId": "cb6d5270-4b28-442b-abaf-52304e0e7e0c",
-            "projectId": "BFIDAvXOISVZh7tb",
+            "projectId": "{{N8N_PROJECT_ID}}",
             "user": {
               "updatedAt": "2026-01-15T05:35:34.000Z",
               "createdAt": "2025-11-20T14:37:17.770Z",
@@ -1695,7 +1695,7 @@
             "updatedAt": "2025-11-20T14:41:45.880Z",
             "createdAt": "2025-11-20T14:41:45.880Z",
             "userId": "006ccda9-eea6-49d4-bc9f-dacf3ba5da1b",
-            "projectId": "BFIDAvXOISVZh7tb",
+            "projectId": "{{N8N_PROJECT_ID}}",
             "user": {
               "updatedAt": "2026-01-15T19:08:17.000Z",
               "createdAt": "2025-11-20T14:41:10.140Z",
@@ -1719,7 +1719,7 @@
             "updatedAt": "2025-11-20T14:41:47.947Z",
             "createdAt": "2025-11-20T14:41:47.947Z",
             "userId": "9f506416-58bd-4402-b811-3e3853811a46",
-            "projectId": "BFIDAvXOISVZh7tb",
+            "projectId": "{{N8N_PROJECT_ID}}",
             "user": {
               "updatedAt": "2025-11-20T17:11:09.086Z",
               "createdAt": "2025-11-20T14:41:10.140Z",
@@ -1739,7 +1739,7 @@
             "updatedAt": "2025-11-20T14:41:49.223Z",
             "createdAt": "2025-11-20T14:41:49.223Z",
             "userId": "3fb3db1c-0294-462b-8595-62eccdd72f26",
-            "projectId": "BFIDAvXOISVZh7tb",
+            "projectId": "{{N8N_PROJECT_ID}}",
             "user": {
               "updatedAt": "2025-12-08T16:21:00.000Z",
               "createdAt": "2025-11-20T14:41:10.140Z",

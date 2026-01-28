@@ -1,0 +1,517 @@
+{
+  "name": "System - JWT Credential Rotation",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "rotate-jwt-credential",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-rotation",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ],
+      "webhookId": "jwt-rotation-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/validate-request.js}}"
+      },
+      "id": "validate-request",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "workflow",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "id": "list-workflows",
+      "name": "List All Workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        700,
+        300
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/find-credential-from-workflows.js}}"
+      },
+      "id": "find-credential-from-workflows",
+      "name": "Find Credential From Workflows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{N8N_API_URL}}/credentials",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ name: $json.old_credential_name, type: $json.credential_type, data: JSON.parse($json.credential_data_json), projectId: 'BFIDAvXOISVZh7tb' }) }}",
+        "options": {}
+      },
+      "id": "create-credential",
+      "name": "Create New Credential",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1140,
+        300
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{N8N_API_URL}}/credentials/{{ $json.id }}/transfer",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ destinationProjectId: 'BFIDAvXOISVZh7tb' }) }}",
+        "options": {}
+      },
+      "id": "get-qtalo-project",
+      "name": "Transfer to QTalo Project",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1360,
+        300
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/verify-transfer.js}}"
+      },
+      "id": "verify-project",
+      "name": "Verify Transfer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/prepare-workflow-updates.js}}"
+      },
+      "id": "store-cred-ids",
+      "name": "Prepare Workflow Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "batchSize": 1,
+        "options": {}
+      },
+      "id": "loop-workflows",
+      "name": "Loop Over Workflows",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        2020,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{N8N_API_URL}}/workflows/{{ $json.workflow_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "options": {}
+      },
+      "id": "get-workflow",
+      "name": "Get Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2240,
+        400
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/transform-workflow.js}}"
+      },
+      "id": "transform-workflow",
+      "name": "Transform Workflow",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{N8N_API_URL}}/workflows/{{ $json.workflow_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "n8nApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.update_payload) }}",
+        "options": {}
+      },
+      "id": "put-workflow",
+      "name": "Update Workflow",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        2680,
+        400
+      ],
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/record-result.js}}"
+      },
+      "id": "record-result",
+      "name": "Record Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2900,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/aggregate-results.js}}"
+      },
+      "id": "aggregate-results",
+      "name": "Aggregate Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2240,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "credential",
+        "operation": "delete",
+        "credentialId": "={{ $json.old_credential_id }}"
+      },
+      "id": "delete-old-cred",
+      "name": "Delete Old Credential",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        2460,
+        200
+      ],
+      "continueOnFail": true,
+      "credentials": {
+        "n8nApi": {
+          "id": "{{N8N_CREDENTIAL_ID}}",
+          "name": "n8n API - Qtalo"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "{{INJECT:scripts/system/jwt-rotation/prepare-response.js}}"
+      },
+      "id": "final-response",
+      "name": "Prepare Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2900,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "List All Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "List All Workflows": {
+      "main": [
+        [
+          {
+            "node": "Find Credential From Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Credential From Workflows": {
+      "main": [
+        [
+          {
+            "node": "Create New Credential",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create New Credential": {
+      "main": [
+        [
+          {
+            "node": "Transfer to QTalo Project",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transfer to QTalo Project": {
+      "main": [
+        [
+          {
+            "node": "Verify Transfer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Transfer": {
+      "main": [
+        [
+          {
+            "node": "Prepare Workflow Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Workflow Updates": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Workflows": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Results",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Workflow": {
+      "main": [
+        [
+          {
+            "node": "Transform Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform Workflow": {
+      "main": [
+        [
+          {
+            "node": "Update Workflow",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Workflow": {
+      "main": [
+        [
+          {
+            "node": "Record Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record Result": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Workflows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Results": {
+      "main": [
+        [
+          {
+            "node": "Delete Old Credential",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Old Credential": {
+      "main": [
+        [
+          {
+            "node": "Prepare Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Response": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
