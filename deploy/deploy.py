@@ -292,6 +292,7 @@ class N8nDeployer:
         }
     
     def get_workflow_by_name(self, name: str) -> Optional[Dict]:
+        """Find a workflow by name"""
         try:
             response = requests.get(
                 f"{self.api_url}/workflows",
@@ -309,6 +310,7 @@ class N8nDeployer:
             return None
     
     def create_workflow(self, workflow_json: Dict) -> Optional[Dict]:
+        """Create a new workflow"""
         try:
             response = requests.post(
                 f"{self.api_url}/workflows",
@@ -322,6 +324,7 @@ class N8nDeployer:
             return None
     
     def update_workflow(self, workflow_id: str, workflow_json: Dict) -> Optional[Dict]:
+        """Update an existing workflow"""
         try:
             response = requests.put(
                 f"{self.api_url}/workflows/{workflow_id}",
@@ -334,21 +337,33 @@ class N8nDeployer:
             log_error(f"Error updating workflow: {e}")
             return None
     
+    def _clean_workflow_json(self, workflow_json: Dict) -> Dict:
+        """Remove metadata fields that shouldn't be sent in create/update"""
+        # Remove fields that n8n manages
+        fields_to_remove = ['id', 'shared', 'homeProject', 'sharedWithProjects', 
+                           'updatedAt', 'createdAt', 'versionId']
+        for field in fields_to_remove:
+            workflow_json.pop(field, None)
+        return workflow_json
+    
     def deploy(self, workflow_json: Dict) -> bool:
+        """Deploy a workflow (create or update by name)"""
         name = workflow_json.get('name', 'Unknown')
         
+        # Clean the workflow JSON
+        workflow_json = self._clean_workflow_json(workflow_json)
+        
+        # Check if workflow exists
         existing = self.get_workflow_by_name(name)
         
         if existing:
             log_info(f"Updating existing workflow: {name} (ID: {existing['id']})")
-            workflow_json.pop('id', None)
             result = self.update_workflow(existing['id'], workflow_json)
             if result:
                 log_success(f"Updated workflow: {name}")
                 return True
         else:
             log_info(f"Creating new workflow: {name}")
-            workflow_json.pop('id', None)
             result = self.create_workflow(workflow_json)
             if result:
                 log_success(f"Created workflow: {name} (ID: {result.get('id')})")
