@@ -5,8 +5,7 @@
 # GitHub Actions workflow. Values come from the same config
 # that's in the local .env file.
 #
-# The deploy.py script reads these as env vars at runtime
-# instead of using SSM Parameter Store.
+# The deploy.py script reads these as env vars at runtime.
 # ============================================================
 
 # ============================================================

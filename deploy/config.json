@@ -1,63 +1,50 @@
 {
-  "ssm_prefix": "/qtalo/n8n",
   "parameters": {
     "N8N_API_URL": {
-      "ssm_path": "/qtalo/n8n/api_url",
       "description": "n8n Cloud API URL",
       "example": "https://qtalospace.app.n8n.cloud/api/v1"
     },
     "N8N_API_KEY": {
-      "ssm_path": "/qtalo/n8n/api_key",
       "description": "n8n API Key (JWT token)",
       "sensitive": true
     },
     "N8N_HOST": {
-      "ssm_path": "/qtalo/n8n/host",
       "description": "n8n Cloud hostname",
       "example": "qtalospace.app.n8n.cloud"
     },
     "N8N_PROJECT_ID": {
-      "ssm_path": "/qtalo/n8n/project_id",
       "description": "QTalo project ID in n8n",
       "example": "BFIDAvXOISVZh7tb"
     },
     "AWS_API_GATEWAY_URL": {
-      "ssm_path": "/qtalo/aws/api_gateway_url",
       "description": "AWS API Gateway base URL for client management",
       "example": "https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod"
     },
     "AWS_API_KEY": {
-      "ssm_path": "/qtalo/aws/api_key",
       "description": "AWS API Gateway API Key",
       "sensitive": true
     },
     "CLICKUP_API_URL": {
-      "ssm_path": "/qtalo/clickup/api_url",
       "description": "ClickUp API base URL",
       "example": "https://api.clickup.com/api/v2"
     },
     "GITHUB_OWNER": {
-      "ssm_path": "/qtalo/github/owner",
       "description": "GitHub repository owner",
       "example": "byronmartinez-ballastlane"
     },
     "GITHUB_REPO": {
-      "ssm_path": "/qtalo/github/repo",
       "description": "GitHub repository name",
       "example": "qtalo-n8n-testing"
     },
     "GITHUB_CREDENTIAL_ID": {
-      "ssm_path": "/qtalo/n8n/credentials/github_id",
       "description": "n8n GitHub credential ID",
       "example": "Q6oSPWOEORCm73TJ"
     },
     "N8N_CREDENTIAL_ID": {
-      "ssm_path": "/qtalo/n8n/credentials/n8n_api_id",
       "description": "n8n API credential ID (for self-referencing)",
       "example": "EaOQcyWDYyvGbbr7"
     },
     "CLICKUP_SYSTEM_CREDENTIAL_ID": {
-      "ssm_path": "/qtalo/n8n/credentials/clickup_system_id",
       "description": "n8n ClickUp credential ID for system workflows",
       "example": "KQ4DCkxv3kBoRgK1"
     }

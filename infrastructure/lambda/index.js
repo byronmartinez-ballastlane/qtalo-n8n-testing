@@ -20,7 +20,6 @@ const dynamoClient = new DynamoDBClient({ region: REGION });
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 const secretsClient = new SecretsManagerClient({ region: REGION });
 
-// Response helper
 const response = (statusCode, body) => ({
   statusCode,
   headers: {
@@ -32,11 +31,9 @@ const response = (statusCode, body) => ({
   body: JSON.stringify(body)
 });
 
-// Main handler
 exports.handler = async (event) => {
   console.log('Event:', JSON.stringify(event, null, 2));
   
-  // Handle CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return response(200, { message: 'OK' });
   }
@@ -54,27 +51,21 @@ exports.handler = async (event) => {
   }
   
   try {
-    // Route handling
-    
-    // Check for /clients/claim/{taskId} path pattern - claim a task to prevent race conditions
     if (path.includes('/clients/claim/') && method === 'PUT') {
       const taskId = path.split('/clients/claim/')[1];
       return await claimTask(taskId);
     }
     
-    // Check for /clients/by-task/{taskId} path pattern first
     if (path.includes('/clients/by-task/') && method === 'GET') {
       const taskId = path.split('/clients/by-task/')[1];
       return await getClientByTaskId(taskId);
     }
     
     if (path.includes('/clients') && method === 'GET') {
-      // List all clients or get specific client
       const clientId = event.pathParameters?.clientId;
       if (clientId) {
         return await getClient(clientId);
       }
-      // Check for task_id query param (lookup by ClickUp task)
       if (event.queryStringParameters?.task_id) {
         return await getClientByTaskId(event.queryStringParameters.task_id);
       }
@@ -125,16 +116,11 @@ exports.handler = async (event) => {
   }
 };
 
-// ============================================================
-// Client Operations
-// ============================================================
-
 async function listClients(queryParams = {}) {
   const params = {
     TableName: TABLE_NAME
   };
   
-  // Filter by status if provided
   if (queryParams?.status) {
     params.FilterExpression = '#status = :status';
     params.ExpressionAttributeNames = { '#status': 'status' };
@@ -162,8 +148,6 @@ async function getClient(clientId) {
   return response(200, result.Item);
 }
 
-// Find client by ClickUp task_id (for task→client mapping)
-// Excludes "claiming" placeholder records - only returns fully onboarded clients
 async function getClientByTaskId(taskId) {
   const params = {
     TableName: TABLE_NAME,
@@ -175,18 +159,13 @@ async function getClientByTaskId(taskId) {
   const result = await docClient.send(new ScanCommand(params));
   
   if (!result.Items || result.Items.length === 0) {
-    // Return 200 with exists: false for easy checking in n8n
     return response(200, { exists: false, task_id: taskId });
   }
   
-  // Return first match with exists: true
   return response(200, { exists: true, client: result.Items[0] });
 }
 
-// Claim a task_id to prevent race conditions during onboarding
-// Creates a placeholder record immediately so concurrent webhooks see it exists
 async function claimTask(taskId) {
-  // First check if already claimed
   const existing = await docClient.send(new ScanCommand({
     TableName: TABLE_NAME,
     FilterExpression: 'clickup_task_id = :taskId',
@@ -197,7 +176,6 @@ async function claimTask(taskId) {
     return response(200, { claimed: false, reason: 'already_exists', task_id: taskId });
   }
   
-  // Create a placeholder record with just the task_id
   const placeholderId = `claiming-${taskId}-${Date.now()}`;
   
   await docClient.send(new PutCommand({
@@ -208,7 +186,6 @@ async function claimTask(taskId) {
       status: 'claiming',
       created_at: new Date().toISOString()
     },
-    // Condition to prevent race condition at DB level
     ConditionExpression: 'attribute_not_exists(client_id)'
   }));
   
@@ -223,10 +200,9 @@ async function onboardClient(body) {
     reply_workspace_id = 'default',
     clickup_space_id,
     clickup_workspace_id = 'default',
-    clickup_task_id  // ClickUp task ID for task→client mapping
+    clickup_task_id 
   } = body;
   
-  // client_id can be provided or auto-generated
   let client_id = body.client_id;
   
   if (!client_name) {
@@ -237,9 +213,7 @@ async function onboardClient(body) {
     return response(400, { error: 'reply_api_key and clickup_api_key are required' });
   }
   
-  // Generate client_id if not provided (ensures uniqueness for multi-tenancy)
   if (!client_id) {
-    // Create slug from client name + short UUID for uniqueness
     const slug = client_name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
@@ -249,16 +223,13 @@ async function onboardClient(body) {
     client_id = `${slug}-${uniqueSuffix}`;
   }
   
-  // Validate client_id format
   if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$/.test(client_id) && client_id.length > 2) {
-    // Auto-fix invalid client_id
     client_id = client_id
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
   }
   
-  // Check if client already exists
   const existing = await docClient.send(new GetCommand({
     TableName: TABLE_NAME,
     Key: { client_id }
@@ -268,7 +239,6 @@ async function onboardClient(body) {
     return response(409, { error: 'Client already exists', client_id });
   }
   
-  // Create secret in Secrets Manager
   const secretName = `n8n/clients/${client_id}`;
   const secretValue = JSON.stringify({
     reply_api_key,
@@ -287,7 +257,6 @@ async function onboardClient(body) {
     secretArn = secretResult.ARN;
   } catch (error) {
     if (error.name === 'ResourceExistsException') {
-      // Update existing secret
       await secretsClient.send(new UpdateSecretCommand({
         SecretId: secretName,
         SecretString: secretValue
@@ -298,15 +267,14 @@ async function onboardClient(body) {
     }
   }
   
-  // Create DynamoDB record
   const timestamp = new Date().toISOString();
   const item = {
     client_id,
     client_name,
     clickup_space_id: clickup_space_id || client_id,
-    clickup_task_id: clickup_task_id || null,  // For task→client mapping
-    reply_workspace_id: reply_workspace_id || null,  // Reply.io workspace name for workspace switching
-    expected_domains: body.expected_domains || [],  // Multi-domain support: domains from CSV
+    clickup_task_id: clickup_task_id || null,
+    reply_workspace_id: reply_workspace_id || null,  
+    expected_domains: body.expected_domains || [],
     secrets_arn: secretArn,
     template_version: '1.0.0',
     status: 'pending_deployment',  // Will be 'active' after workflows deployed

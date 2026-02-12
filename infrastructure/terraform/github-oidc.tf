@@ -5,8 +5,7 @@
 # (no static AWS credentials needed as repo secrets).
 #
 # The role has permissions to:
-#   1. Read SSM parameters (for deploy.py config)
-#   2. Invoke the JWT rotation Lambda (post-deploy step)
+#   1. Invoke the JWT rotation Lambda (post-deploy step)
 # ============================================================
 
 module "github_oidc" {
@@ -33,26 +32,16 @@ module "github_oidc" {
 }
 
 # ============================================================
-# IAM Policy: SSM read + Lambda invoke
+# IAM Policy: Lambda invoke for JWT rotation
 # ============================================================
 
 resource "aws_iam_policy" "github_actions_deploy" {
   name        = "${var.project_name}-github-actions-deploy-${var.environment}"
-  description = "Allows GitHub Actions to read SSM params and invoke the JWT rotation Lambda"
+  description = "Allows GitHub Actions to invoke the JWT rotation Lambda"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      {
-        Sid    = "ReadSSMParameters"
-        Effect = "Allow"
-        Action = [
-          "ssm:GetParameter",
-          "ssm:GetParameters",
-          "ssm:GetParametersByPath"
-        ]
-        Resource = "arn:aws:ssm:${var.aws_region}:*:parameter/qtalo/*"
-      },
       {
         Sid    = "InvokeJWTRotationLambda"
         Effect = "Allow"

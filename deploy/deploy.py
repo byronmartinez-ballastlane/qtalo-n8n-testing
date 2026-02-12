@@ -3,12 +3,11 @@
 QTalo n8n System Workflow Deployment Script
 
 This script:
-1. Reads configuration from AWS SSM Parameter Store (or local .env for testing)
+1. Reads configuration from environment variables (or .env file)
 2. Renders system workflow templates with actual values
 3. Optionally deploys to n8n via API
 
 Usage:
-    python deploy.py --preview --local
     python deploy.py --preview
     python deploy.py --deploy
     python deploy.py --deploy --workflow client-onboarding-v2
@@ -22,12 +21,6 @@ import argparse
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dotenv import load_dotenv
-
-try:
-    import boto3
-    HAS_BOTO3 = True
-except ImportError:
-    HAS_BOTO3 = False
 
 try:
     import requests
@@ -73,15 +66,9 @@ def log_header(msg: str):
 
 class ConfigLoader:
     
-    def __init__(self, use_local: bool = False, ssm_prefix: str = "/qtalo/n8n"):
-        self.use_local = use_local
-        self.ssm_prefix = ssm_prefix
+    def __init__(self):
         self.config: Dict[str, str] = {}
-        
-        if use_local:
-            self._load_from_env()
-        else:
-            self._load_from_ssm()
+        self._load_from_env()
     
     def _load_from_env(self):
         log_info("Loading configuration from environment variables...")
@@ -119,43 +106,7 @@ class ConfigLoader:
             if match:
                 self.config["N8N_HOST"] = match.group(1)
         
-        log_success(f"Loaded {len(self.config)} configuration values from .env")
-    
-    def _load_from_ssm(self):
-        if not HAS_BOTO3:
-            log_error("boto3 is required for SSM access. Install with: pip install boto3")
-            sys.exit(1)
-        
-        log_info(f"Loading configuration from SSM with prefix: {self.ssm_prefix}")
-        
-        ssm = boto3.client('ssm')
-        
-        ssm_params = {
-            "N8N_API_URL": f"{self.ssm_prefix}/api_url",
-            "N8N_API_KEY": f"{self.ssm_prefix}/api_key",
-            "N8N_HOST": f"{self.ssm_prefix}/host",
-            "N8N_PROJECT_ID": f"{self.ssm_prefix}/project_id",
-            "AWS_API_GATEWAY_URL": "/qtalo/aws/api_gateway_url",
-            "AWS_API_KEY": "/qtalo/aws/api_key",
-            "CLICKUP_API_URL": "/qtalo/clickup/api_url",
-            "GITHUB_OWNER": "/qtalo/github/owner",
-            "GITHUB_REPO": "/qtalo/github/repo",
-            "GITHUB_CREDENTIAL_ID": f"{self.ssm_prefix}/credentials/github_id",
-            "N8N_CREDENTIAL_ID": f"{self.ssm_prefix}/credentials/n8n_api_id",
-            "CLICKUP_SYSTEM_CREDENTIAL_ID": f"{self.ssm_prefix}/credentials/clickup_system_id",
-        }
-        
-        for config_key, ssm_path in ssm_params.items():
-            try:
-                response = ssm.get_parameter(Name=ssm_path, WithDecryption=True)
-                self.config[config_key] = response['Parameter']['Value']
-                log_success(f"Loaded {config_key} from {ssm_path}")
-            except ssm.exceptions.ParameterNotFound:
-                log_warning(f"Parameter not found: {ssm_path}")
-            except Exception as e:
-                log_error(f"Error loading {ssm_path}: {e}")
-        
-        log_success(f"Loaded {len(self.config)} configuration values from SSM")
+        log_success(f"Loaded {len(self.config)} configuration values")
     
     def get(self, key: str, default: Optional[str] = None) -> Optional[str]:
         return self.config.get(key, default)
@@ -534,12 +485,8 @@ Examples:
                         help='Render templates and save to deploy/rendered/')
     parser.add_argument('--deploy', action='store_true',
                         help='Deploy rendered templates to n8n')
-    parser.add_argument('--local', action='store_true',
-                        help='Use local .env file instead of SSM')
     parser.add_argument('--workflow', type=str,
                         help='Filter to specific workflow (partial name match)')
-    parser.add_argument('--ssm-prefix', type=str, default='/qtalo/n8n',
-                        help='SSM parameter prefix (default: /qtalo/n8n)')
     parser.add_argument('--output', type=str,
                         help='Output directory for rendered files (default: deploy/rendered/)')
     
@@ -549,13 +496,13 @@ Examples:
     output_dir = Path(args.output) if args.output else None
     
     if args.create_templates:
-        config_loader = ConfigLoader(use_local=True)
+        config_loader = ConfigLoader()
         create_templates(base_dir, config_loader.get_all())
     elif args.preview:
-        config_loader = ConfigLoader(use_local=args.local, ssm_prefix=args.ssm_prefix)
+        config_loader = ConfigLoader()
         preview_templates(base_dir, config_loader, output_dir)
     elif args.deploy:
-        config_loader = ConfigLoader(use_local=args.local, ssm_prefix=args.ssm_prefix)
+        config_loader = ConfigLoader()
         deploy_workflows(base_dir, config_loader, args.workflow)
     else:
         parser.print_help()

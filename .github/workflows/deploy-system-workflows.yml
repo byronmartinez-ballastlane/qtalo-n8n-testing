@@ -61,10 +61,10 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - run: python deploy/deploy.py --preview --local
+      - run: python deploy/deploy.py --preview
 
       - if: inputs.dry_run != true
-        run: python deploy/deploy.py --deploy --local ${{ inputs.workflow && format('--workflow {0}', inputs.workflow) }}
+        run: python deploy/deploy.py --deploy ${{ inputs.workflow && format('--workflow {0}', inputs.workflow) }}
 
       - if: inputs.dry_run != true
         run: aws lambda invoke --function-name qtalo-n8n-secret-rotation-prod --payload '{}' --cli-binary-format raw-in-base64-out /dev/null
