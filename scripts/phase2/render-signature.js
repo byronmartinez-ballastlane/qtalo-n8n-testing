@@ -13,6 +13,15 @@ return items.map(item => {
   const firstName = nameParts[0] ? (nameParts[0].charAt(0).toUpperCase() + nameParts[0].slice(1)) : 'User';
   const domain = emailAddress ? (emailAddress.match(/@(.+)$/)?.[1] || '') : '';
   
+  // Determine company_url per mailbox:
+  // If the mailbox domain matches the task's domain, use the full company_url from ClickUp.
+  // Otherwise, use the mailbox's own domain so each signature shows the correct URL.
+  const taskCompanyUrl = config.company_url || '';
+  const taskDomain = taskCompanyUrl.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].split('?')[0].split('#')[0].split(':')[0];
+  const mailboxCompanyUrl = (domain && taskDomain && domain.toLowerCase() === taskDomain.toLowerCase())
+    ? taskCompanyUrl
+    : (domain || taskCompanyUrl);
+  
   // Template variables
   const variables = {
     first_name: firstName,
@@ -21,7 +30,7 @@ return items.map(item => {
     email: emailAddress,
     domain: domain,
     company_name: config.company_name || '',
-    company_url: config.company_url || '',
+    company_url: mailboxCompanyUrl,
     phone: config.company_phone || ''
   };
   
