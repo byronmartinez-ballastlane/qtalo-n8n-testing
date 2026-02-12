@@ -84,16 +84,14 @@ class ConfigLoader:
             self._load_from_ssm()
     
     def _load_from_env(self):
-        log_info("Loading configuration from .env file...")
+        log_info("Loading configuration from environment variables...")
         
         script_dir = Path(__file__).parent.parent
         env_path = script_dir / ".env"
         
-        if not env_path.exists():
-            log_error(f".env file not found at {env_path}")
-            sys.exit(1)
-        
-        load_dotenv(env_path)
+        if env_path.exists():
+            load_dotenv(env_path)
+            log_info("Loaded .env file")
         
         env_mapping = {
             "N8N_API_URL": "N8N_API_URL",
@@ -109,11 +107,11 @@ class ConfigLoader:
             if value:
                 self.config[config_key] = value
         
-        self.config.setdefault("AWS_API_GATEWAY_URL", "https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod")
-        self.config.setdefault("CLICKUP_API_URL", "https://api.clickup.com/api/v2")
-        self.config.setdefault("GITHUB_OWNER", "byronmartinez-ballastlane")
-        self.config.setdefault("GITHUB_REPO", "qtalo-n8n-testing")
-        self.config.setdefault("CLICKUP_SYSTEM_CREDENTIAL_ID", "KQ4DCkxv3kBoRgK1")
+        self.config.setdefault("AWS_API_GATEWAY_URL", os.getenv("AWS_API_GATEWAY_URL", "https://r81lwr2etg.execute-api.us-east-1.amazonaws.com/prod"))
+        self.config.setdefault("CLICKUP_API_URL", os.getenv("CLICKUP_API_URL", "https://api.clickup.com/api/v2"))
+        self.config.setdefault("GITHUB_OWNER", os.getenv("GITHUB_OWNER", "byronmartinez-ballastlane"))
+        self.config.setdefault("GITHUB_REPO", os.getenv("GITHUB_REPO", "qtalo-n8n-testing"))
+        self.config.setdefault("CLICKUP_SYSTEM_CREDENTIAL_ID", os.getenv("CLICKUP_SYSTEM_CREDENTIAL_ID", "KQ4DCkxv3kBoRgK1"))
         
         if "N8N_HOST" not in self.config and "N8N_API_URL" in self.config:
             url = self.config["N8N_API_URL"]
