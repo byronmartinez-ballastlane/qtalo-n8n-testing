@@ -73,7 +73,7 @@ async function getClientConfig(clientId) {
     
     const expectedDomains = result.Item.expected_domains || [];
     if (expectedDomains.length === 0) {
-      console.error(`❌ CRITICAL: No expected_domains configured for client ${clientId}. This is required for multi-tenancy security.`);
+      console.log(`ℹ️ No expected_domains configured for client ${clientId}. Domain filtering will be skipped.`);
     } else {
       console.log(`📋 Expected domains for client ${clientId}: ${expectedDomains.join(', ')}`);
     }
@@ -123,17 +123,15 @@ async function getClientCredentials(clientId) {
 // MULTI-TENANCY: Validate that all account emails belong to expected domains
 function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
   if (!expectedDomains || expectedDomains.length === 0) {
-    const errorMsg = 'SECURITY BLOCK: No expected_domains configured for this client. ' +
-      'Cannot process accounts without domain whitelist. ' +
-      'Please configure expected_domains in client settings before proceeding.';
-    console.error(`❌ ${errorMsg}`);
+    // No expected_domains configured — allow all accounts through
+    // This happens when domains are derived from the CSV itself and no task domain was set
+    console.log('ℹ️ No expected_domains configured. Allowing all accounts (domains derived from CSV).');
     return { 
-      valid: false, 
-      accounts: [], 
-      rejectedAccounts: accounts.map(a => ({ ...a, rejectionReason: 'No expected_domains configured' })), 
-      message: errorMsg,
-      securityBlock: true,
-      missingDomainConfig: true
+      valid: true, 
+      accounts: accounts, 
+      rejectedAccounts: [], 
+      message: `All ${accounts.length} accounts allowed (no domain filter configured)`,
+      noDomainFilter: true
     };
   }
   

@@ -65,7 +65,8 @@ const expectedDomains = expectedDomain ? [expectedDomain] : [];
 
 console.log('🆔 Generated client_id:', clientId);
 console.log('🌐 Company URL:', companyUrl, '→ Domain:', expectedDomain);
-console.log('🔒 Expected domains:', JSON.stringify(expectedDomains));
+console.log('🔒 Task-level domain hint:', JSON.stringify(expectedDomains));
+console.log('ℹ️ Full multi-domain list will be derived from CSV when orchestrator runs.');
 
 return {
   json: {

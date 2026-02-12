@@ -306,6 +306,7 @@ async function onboardClient(body) {
     clickup_space_id: clickup_space_id || client_id,
     clickup_task_id: clickup_task_id || null,  // For task→client mapping
     reply_workspace_id: reply_workspace_id || null,  // Reply.io workspace name for workspace switching
+    expected_domains: body.expected_domains || [],  // Multi-domain support: domains from CSV
     secrets_arn: secretArn,
     template_version: '1.0.0',
     status: 'pending_deployment',  // Will be 'active' after workflows deployed

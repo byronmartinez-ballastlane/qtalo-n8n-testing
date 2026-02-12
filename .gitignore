@@ -48,3 +48,4 @@ replyio-lambda-deploy/
 
 # Local scripts with credentials
 lo.sh
+*.rendered.json

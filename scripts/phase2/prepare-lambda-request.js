@@ -25,7 +25,7 @@ if (!clientId) {
 }
 
 console.log(`🎯 Client ID: ${clientId}`);
-console.log(`🔒 Passing expected_domains to Lambda: ${expectedDomains.join(', ') || 'NONE (WARNING!)'}`);
+console.log(`🔒 Passing ${expectedDomains.length} expected_domains to Lambda: ${expectedDomains.join(', ') || 'NONE (domain filter disabled)'}`);
 console.log(`🏢 Passing reply_workspace_id to Lambda: ${replyWorkspaceId || 'DEFAULT (not set)'}`);
 
 // Convert plain text signatures to HTML

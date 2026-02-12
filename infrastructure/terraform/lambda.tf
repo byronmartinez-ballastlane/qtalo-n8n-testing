@@ -233,8 +233,33 @@ resource "aws_iam_role_policy" "signature_lambda_policy" {
   })
 }
 
-# Import existing Lambda (already deployed manually)
-# This imports the existing replyio-signature-automation function
+# ============================================================
+# Signature Lambda Deployment Package
+# ============================================================
+
+data "archive_file" "signature_lambda_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../signature-lambda"
+  output_path = "${path.module}/signature-lambda-package.zip"
+  excludes    = ["function.zip"]
+}
+
+resource "aws_s3_object" "signature_lambda_package" {
+  bucket = aws_s3_bucket.lambda_deployments.id
+  key    = "replyio-signature-automation/${var.environment}/function-${data.archive_file.signature_lambda_zip.output_base64sha256}.zip"
+  source = data.archive_file.signature_lambda_zip.output_path
+  etag   = filemd5(data.archive_file.signature_lambda_zip.output_path)
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+  }
+}
+
+# ============================================================
+# Signature Lambda Function
+# ============================================================
+
 resource "aws_lambda_function" "signature_automation" {
   function_name = "replyio-signature-automation"
   role          = aws_iam_role.signature_lambda_role.arn
@@ -243,9 +268,9 @@ resource "aws_lambda_function" "signature_automation" {
   timeout       = 900
   memory_size   = 3008
 
-  # Deploy from S3 bucket - use dynamic bucket name with account ID
-  s3_bucket = aws_s3_bucket.lambda_deployments.bucket
-  s3_key    = "replyio-signature-automation/function.zip"
+  s3_bucket        = aws_s3_bucket.lambda_deployments.id
+  s3_key           = aws_s3_object.signature_lambda_package.key
+  source_code_hash = data.archive_file.signature_lambda_zip.output_base64sha256
 
   # Ephemeral storage for Puppeteer/Chromium
   ephemeral_storage {
@@ -268,15 +293,6 @@ resource "aws_lambda_function" "signature_automation" {
     Environment = var.environment
     Purpose     = "Reply.io signature automation with Puppeteer"
     ManagedBy   = "Terraform"
-  }
-
-  lifecycle {
-    # Ignore changes to source code - deployments handled via CI/CD
-    ignore_changes = [
-      s3_bucket,
-      s3_key,
-      # source_code_hash
-    ]
   }
 }
 

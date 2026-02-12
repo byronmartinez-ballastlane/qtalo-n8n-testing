@@ -48,32 +48,34 @@ function parseDomainFromUrl(url) {
 const domainFromUrl = parseDomainFromUrl(companyUrl);
 
 // CRITICAL: Get expected_domains with priority fallbacks
+// NOTE: This extracts the TASK-LEVEL domain hint only (single domain).
+// The actual multi-domain list is built in combine-data.js by extracting
+// all unique domains from the CSV and reconciling with this task domain.
 // Priority 1: Domain custom field (single domain)
 let expectedDomains = [];
 if (domainField) {
   const parsedDomain = parseDomainFromUrl(domainField); // Clean it in case it has www. or protocol
   if (parsedDomain) {
     expectedDomains = [parsedDomain];
-    console.log(`✅ Using Domain custom field: ${parsedDomain}`);
+    console.log(`✅ Using Domain custom field as task domain hint: ${parsedDomain}`);
   }
 }
 
 // Priority 2: Parse from company_url
 if (expectedDomains.length === 0 && domainFromUrl) {
   expectedDomains = [domainFromUrl];
-  console.log(`⚠️ No Domain field - auto-extracted from company_url: ${domainFromUrl}`);
+  console.log(`⚠️ No Domain field - auto-extracted task domain hint from company_url: ${domainFromUrl}`);
 }
 
 // Priority 3: Extract from task name
 if (expectedDomains.length === 0 && extractedDomain) {
   expectedDomains = [extractedDomain];
-  console.log(`⚠️ No Domain field or company_url - auto-extracted from task name: ${extractedDomain}`);
+  console.log(`⚠️ No Domain field or company_url - auto-extracted task domain hint from task name: ${extractedDomain}`);
 }
 
-// Log warning if no expected_domains (dangerous for production)
+// Log info - this is just the task-level hint, combine-data.js will build the final list from CSV
 if (!expectedDomains || expectedDomains.length === 0) {
-  console.warn('⚠️ WARNING: No expected_domains configured - workflow will process ALL mailboxes!');
-  console.warn('⚠️ This is not recommended for production. Set expected_domains in ClickUp custom field.');
+  console.log('ℹ️ No task-level domain hint configured. Domains will be extracted from CSV in combine-data step.');
 }
 
 // Extract configuration with fallbacks
@@ -100,7 +102,7 @@ const config = {
   attachments: task.attachments || []
 };
 
-console.log(`🔒 Expected domains for this client: ${config.expected_domains.join(', ') || 'NONE (UNSAFE!)'}`);
+console.log(`🔒 Task-level domain hint: ${config.expected_domains.join(', ') || 'NONE (will be derived from CSV)'}`);
 
 // Find CSV attachment
 const csvAttachment = config.attachments.find(a => 

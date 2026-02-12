@@ -80,7 +80,8 @@ let source = 'api';
 console.log(`Processing ${mailboxes.length} mailboxes from API response`);
 
 // ============================================================
-// MULTI-TENANCY DOMAIN FILTERING - CRITICAL SECURITY CHECK
+// MULTI-TENANCY DOMAIN FILTERING
+// Now supports multiple domains (derived from CSV in combine-data.js)
 // ============================================================
 const expectedDomains = config.expected_domains;
 let filteredMailboxes = mailboxes;
@@ -88,7 +89,7 @@ let rejectedMailboxes = [];
 
 if (expectedDomains && expectedDomains.length > 0) {
   const normalizedDomains = expectedDomains.map(d => d.toLowerCase().trim());
-  console.log(`🔒 DOMAIN FILTER: Only processing mailboxes for domains: ${normalizedDomains.join(', ')}`);
+  console.log(`🔒 DOMAIN FILTER: Processing mailboxes for ${normalizedDomains.length} domain(s): ${normalizedDomains.join(', ')}`);
   
   filteredMailboxes = [];
   rejectedMailboxes = [];
@@ -106,7 +107,7 @@ if (expectedDomains && expectedDomains.length > 0) {
     }
   }
   
-  console.log(`🔒 Domain filter results: ${filteredMailboxes.length} approved, ${rejectedMailboxes.length} rejected`);
+  console.log(`🔒 Domain filter results: ${filteredMailboxes.length} approved, ${rejectedMailboxes.length} rejected out of ${mailboxes.length} total`);
   
   // SECURITY: Block execution if ALL mailboxes were rejected
   if (filteredMailboxes.length === 0 && mailboxes.length > 0) {
@@ -115,7 +116,7 @@ if (expectedDomains && expectedDomains.length > 0) {
     throw new Error(errorMsg);
   }
 } else {
-  console.warn('⚠️ WARNING: No expected_domains configured - processing ALL mailboxes (not recommended for production)');
+  console.log('ℹ️ No expected_domains configured — processing ALL mailboxes (domains will be derived from mailbox list).');
 }
 // ============================================================
 
