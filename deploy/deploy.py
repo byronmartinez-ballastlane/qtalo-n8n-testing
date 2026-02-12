@@ -331,7 +331,9 @@ class N8nDeployer:
                 headers=self.headers,
                 json=workflow_json
             )
-            response.raise_for_status()
+            if not response.ok:
+                log_error(f"Error updating workflow: {response.status_code} {response.text[:500]}")
+                return None
             return response.json()
         except Exception as e:
             log_error(f"Error updating workflow: {e}")
@@ -339,12 +341,10 @@ class N8nDeployer:
     
     def _clean_workflow_json(self, workflow_json: Dict) -> Dict:
         """Remove metadata fields that shouldn't be sent in create/update"""
-        # Remove fields that n8n manages
-        fields_to_remove = ['id', 'shared', 'homeProject', 'sharedWithProjects', 
-                           'updatedAt', 'createdAt', 'versionId']
-        for field in fields_to_remove:
-            workflow_json.pop(field, None)
-        return workflow_json
+        # Only keep fields that the n8n Cloud API accepts for PUT /workflows/{id}
+        # NOTE: versionId must NOT be included — it causes 400 "additional properties"
+        allowed_fields = ['name', 'nodes', 'connections', 'settings']
+        return {k: v for k, v in workflow_json.items() if k in allowed_fields}
     
     def deploy(self, workflow_json: Dict) -> bool:
         """Deploy a workflow (create or update by name)"""
