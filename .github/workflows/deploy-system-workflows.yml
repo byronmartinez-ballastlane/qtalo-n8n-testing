@@ -1,0 +1,70 @@
+name: Deploy System Workflows
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'system/*.template.json'
+      - 'scripts/system/**/*.js'
+      - 'deploy/deploy.py'
+      - 'deploy/config.json'
+
+  workflow_dispatch:
+    inputs:
+      workflow:
+        description: 'Specific workflow to deploy (empty = all)'
+        required: false
+        type: string
+      dry_run:
+        description: 'Preview only (no deploy)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-system-workflows
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    env:
+      N8N_API_URL: ${{ secrets.N8N_API_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+      N8N_HOST: ${{ secrets.N8N_HOST }}
+      N8N_PROJECT_ID: ${{ secrets.N8N_PROJECT_ID }}
+      GITHUB_CRED_ID: ${{ secrets.GH_CREDENTIAL_ID }}
+      N8N_CRED_ID: ${{ secrets.N8N_CREDENTIAL_ID }}
+      AWS_API_GATEWAY_URL: ${{ secrets.AWS_API_GATEWAY_URL }}
+      CLICKUP_API_URL: ${{ secrets.CLICKUP_API_URL }}
+      GITHUB_OWNER: ${{ secrets.GH_OWNER }}
+      GITHUB_REPO: ${{ secrets.GH_REPO }}
+      CLICKUP_SYSTEM_CREDENTIAL_ID: ${{ secrets.CLICKUP_SYSTEM_CREDENTIAL_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: deploy/requirements.txt
+
+      - run: pip install -r deploy/requirements.txt
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - run: python deploy/deploy.py --preview --local
+
+      - if: inputs.dry_run != true
+        run: python deploy/deploy.py --deploy --local ${{ inputs.workflow && format('--workflow {0}', inputs.workflow) }}
+
+      - if: inputs.dry_run != true
+        run: aws lambda invoke --function-name qtalo-n8n-secret-rotation-prod --payload '{}' --cli-binary-format raw-in-base64-out /dev/null

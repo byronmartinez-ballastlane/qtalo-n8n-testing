@@ -29,6 +29,7 @@ infrastructure/terraform/.terraform/
 # Files with secrets
 *.tfstate
 *.tfstate.backup
+qtalo.tfvars
 /workflows/
 clients/
 
@@ -48,4 +49,9 @@ replyio-lambda-deploy/
 
 # Local scripts with credentials
 lo.sh
+
+# Documentation / Confluence upload scripts
+docs/
 *.rendered.json
+.venv/
+*.tfvars

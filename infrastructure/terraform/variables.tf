@@ -1,3 +1,7 @@
+# ============================================================
+# Core AWS Configuration
+# ============================================================
+
 variable "aws_region" {
   description = "AWS region"
   type        = string
@@ -5,9 +9,9 @@ variable "aws_region" {
 }
 
 variable "aws_profile" {
-  description = "AWS CLI profile to use (e.g., 'bla' for BallastLane, 'qtalo' for Qtalo client)"
+  description = "AWS CLI profile to use"
   type        = string
-  default     = "bla"
+  default     = "qtalo"
 }
 
 variable "environment" {
@@ -32,6 +36,10 @@ variable "chrome_lambda_layer_arn" {
   default     = "arn:aws:lambda:us-east-1:764866452798:layer:chrome-aws-lambda:45"
 }
 
+# ============================================================
+# DynamoDB Configuration
+# ============================================================
+
 variable "dynamodb_table_name" {
   description = "DynamoDB table name for client configs"
   type        = string
@@ -39,7 +47,7 @@ variable "dynamodb_table_name" {
 }
 
 # ============================================================
-# n8n API Configuration (for JWT secret rotation)
+# n8n API Configuration
 # ============================================================
 
 variable "n8n_api_url" {
@@ -49,7 +57,7 @@ variable "n8n_api_url" {
 }
 
 variable "n8n_jwt_credential_name" {
-  description = "n8n credential name for the JWT secret (webhook finds by name)"
+  description = "n8n credential name for the JWT secret"
   type        = string
   default     = "AWS API Gateway JWT"
 }
@@ -57,13 +65,25 @@ variable "n8n_jwt_credential_name" {
 # ============================================================
 # Import Mode Configuration
 # ============================================================
-# When importing existing infrastructure (BLA account), set to true.
-# The HTTP API integration/route/stage were created via "quick create"
-# and cannot be imported. Setting this to true skips creating them.
-# For fresh deployments (Qtalo account), set to false to create all resources.
 
 variable "import_mode" {
-  description = "Set to true when importing existing infrastructure (skips quick-create resources)"
+  description = "Set to true when importing existing infrastructure"
   type        = bool
   default     = false
+}
+
+# ============================================================
+# GitHub Configuration
+# ============================================================
+
+variable "github_pat" {
+  description = "GitHub Personal Access Token (for creating repo secrets)"
+  type        = string
+  sensitive   = true
+}
+
+variable "github_repo" {
+  description = "GitHub repository name"
+  type        = string
+  default     = "qtalo-n8n-testing"
 }
