@@ -48,7 +48,7 @@ async function getChromiumExecutablePath() {
 }
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
+const { DynamoDBDocumentClient, GetCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
 
 const REGION = process.env.AWS_REGION || 'us-east-1';
 const TABLE_NAME = process.env.DYNAMODB_TABLE || 'qtalo-n8n-clients-prod';
@@ -194,6 +194,66 @@ function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
       ? `${rejectedAccounts.length} accounts rejected by domain validation, ${validAccounts.length} accounts will be processed`
       : `All ${validAccounts.length} accounts passed domain validation`
   };
+}
+
+// ============================================================
+// SYNC EXPECTED DOMAINS: Merge processed domains into DynamoDB
+// Called at the end of execution to keep DynamoDB in sync
+// ============================================================
+async function syncExpectedDomains(clientId, processedDomains) {
+  if (!clientId || !processedDomains || processedDomains.length === 0) {
+    console.log('ℹ️ syncExpectedDomains: Nothing to sync (no client_id or domains)');
+    return { synced: false, reason: 'no data' };
+  }
+
+  try {
+    // Fetch current record
+    const result = await docClient.send(new GetCommand({
+      TableName: TABLE_NAME,
+      Key: { client_id: clientId }
+    }));
+
+    if (!result.Item) {
+      console.log(`⚠️ syncExpectedDomains: Client ${clientId} not found in DynamoDB, skipping`);
+      return { synced: false, reason: 'client not found' };
+    }
+
+    const currentDomains = (result.Item.expected_domains || []).map(d => d.toLowerCase().trim());
+    const newDomains = processedDomains.map(d => d.toLowerCase().trim());
+
+    // Merge: union of current + new, deduplicated and sorted
+    const mergedSet = new Set([...currentDomains, ...newDomains]);
+    const mergedDomains = [...mergedSet].sort();
+
+    // Check if update is needed
+    const currentSorted = [...currentDomains].sort();
+    if (JSON.stringify(currentSorted) === JSON.stringify(mergedDomains)) {
+      console.log(`✅ syncExpectedDomains: DynamoDB already has all ${mergedDomains.length} domain(s): ${mergedDomains.join(', ')}`);
+      return { synced: false, reason: 'already in sync', domains: mergedDomains };
+    }
+
+    // Update DynamoDB
+    console.log(`🔄 syncExpectedDomains: Updating DynamoDB for client ${clientId}`);
+    console.log(`   Before: [${currentSorted.join(', ')}] (${currentSorted.length})`);
+    console.log(`   After:  [${mergedDomains.join(', ')}] (${mergedDomains.length})`);
+
+    await docClient.send(new UpdateCommand({
+      TableName: TABLE_NAME,
+      Key: { client_id: clientId },
+      UpdateExpression: 'SET expected_domains = :domains, updated_at = :ts',
+      ExpressionAttributeValues: {
+        ':domains': mergedDomains,
+        ':ts': new Date().toISOString()
+      }
+    }));
+
+    console.log(`✅ syncExpectedDomains: DynamoDB updated with ${mergedDomains.length} domain(s)`);
+    return { synced: true, domains: mergedDomains, added: mergedDomains.filter(d => !currentDomains.includes(d)) };
+  } catch (error) {
+    // Non-fatal: log but don't fail the Lambda
+    console.error(`⚠️ syncExpectedDomains: Failed to sync domains to DynamoDB:`, error.message);
+    return { synced: false, reason: 'error', error: error.message };
+  }
 }
 
 // ============================================================
@@ -738,6 +798,12 @@ exports.handler = async (event, context) => {
         
         console.log('Processing completed successfully:', JSON.stringify(enhancedResult, null, 2));
         
+        // Sync expected_domains to DynamoDB before responding
+        const domainSync = await syncExpectedDomains(client_id, expectedDomains);
+        if (domainSync.synced) {
+          enhancedResult.domain_sync = domainSync;
+        }
+        
         // Send webhook notification if URL provided
         if (webhookUrl) {
           console.log('Sending results to webhook:', webhookUrl);
@@ -784,6 +850,9 @@ exports.handler = async (event, context) => {
     console.log('Starting synchronous processing...');
     const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains, replyWorkspaceId);
     
+    // Sync expected_domains to DynamoDB before responding
+    const domainSync = await syncExpectedDomains(client_id, expectedDomains);
+    
     // Add domain validation info to sync result
     const enhancedSyncResult = {
       ...result,
@@ -792,7 +861,8 @@ exports.handler = async (event, context) => {
         approved_count: validatedAccounts.length,
         rejected_count: rejectedAccounts.length,
         rejected_accounts: rejectedAccounts.map(a => ({ email: a.email, reason: a.rejectionReason }))
-      }
+      },
+      ...(domainSync.synced ? { domain_sync: domainSync } : {})
     };
     
     return {
