@@ -20,7 +20,7 @@ return items.map(item => {
   const taskDomain = taskCompanyUrl.toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0].split('?')[0].split('#')[0].split(':')[0];
   const mailboxCompanyUrl = (domain && taskDomain && domain.toLowerCase() === taskDomain.toLowerCase())
     ? taskCompanyUrl
-    : (domain || taskCompanyUrl);
+    : '';
   
   // Template variables
   const variables = {
