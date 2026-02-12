@@ -225,7 +225,8 @@ resource "aws_iam_role_policy" "signature_lambda_policy" {
       {
         Effect = "Allow"
         Action = [
-          "dynamodb:GetItem"
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem"
         ]
         Resource = aws_dynamodb_table.clients.arn
       }
