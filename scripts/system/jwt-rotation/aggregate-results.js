@@ -4,7 +4,6 @@ const results = $input.all().map(i => i.json);
 const updated = results.filter(r => r.status === 'updated').length;
 const errored = results.filter(r => r.status === 'error').length;
 
-// Get credential IDs from first result
 const firstResult = results[0] || {};
 
 console.log(`Workflow updates complete: ${updated} updated, ${errored} errors`);
