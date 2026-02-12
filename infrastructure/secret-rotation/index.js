@@ -23,9 +23,14 @@ const {
   UpdateSecretVersionStageCommand,
   DescribeSecretCommand,
 } = require("@aws-sdk/client-secrets-manager");
+const {
+  LambdaClient,
+  UpdateFunctionConfigurationCommand,
+} = require("@aws-sdk/client-lambda");
 const crypto = require("crypto");
 
 const secretsClient = new SecretsManagerClient({});
+const lambdaClient = new LambdaClient({});
 
 // n8n API configuration from environment
 const N8N_API_URL = process.env.N8N_API_URL;
@@ -143,6 +148,38 @@ async function testN8nSecret() {
 
   console.log("n8n credential rotation completed via webhook - test passed");
   return true;
+}
+
+/**
+ * Invalidate the JWT authorizer Lambda's in-memory cache by updating its
+ * environment, which forces AWS Lambda to create new execution environments.
+ */
+async function invalidateAuthorizerCache() {
+  const authorizerFunctionName = process.env.AUTHORIZER_FUNCTION_NAME;
+  if (!authorizerFunctionName) {
+    console.log("AUTHORIZER_FUNCTION_NAME not set, skipping cache invalidation");
+    return;
+  }
+
+  console.log(`Invalidating authorizer cache for: ${authorizerFunctionName}`);
+
+  try {
+    const command = new UpdateFunctionConfigurationCommand({
+      FunctionName: authorizerFunctionName,
+      Environment: {
+        Variables: {
+          JWT_SECRET_NAME: process.env.JWT_SECRET_NAME,
+          // Timestamp forces a new environment, clearing in-memory caches
+          LAST_ROTATION: new Date().toISOString(),
+        },
+      },
+    });
+
+    await lambdaClient.send(command);
+    console.log("Authorizer Lambda configuration updated - cache invalidated");
+  } catch (error) {
+    console.warn("Failed to invalidate authorizer cache (non-fatal):", error.message);
+  }
 }
 
 /**
@@ -275,6 +312,9 @@ async function handleScheduledRotation() {
 
   // Step 4: Finish rotation
   await finishRotation(secretId, clientRequestToken);
+
+  // Step 5: Invalidate authorizer Lambda cache by forcing a cold start
+  await invalidateAuthorizerCache();
 
   console.log("Scheduled rotation completed successfully");
 

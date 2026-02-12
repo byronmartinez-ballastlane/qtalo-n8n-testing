@@ -210,6 +210,11 @@ resource "aws_iam_role_policy" "secret_rotation_policy" {
           "secretsmanager:DescribeSecret"
         ]
         Resource = aws_secretsmanager_secret.jwt_signing_secret.arn
+      },
+      {
+        Effect   = "Allow"
+        Action   = "lambda:UpdateFunctionConfiguration"
+        Resource = aws_lambda_function.jwt_authorizer.arn
       }
     ]
   })
@@ -250,9 +255,10 @@ resource "aws_lambda_function" "secret_rotation" {
 
   environment {
     variables = {
-      JWT_SECRET_NAME     = aws_secretsmanager_secret.jwt_signing_secret.name
-      N8N_API_URL         = var.n8n_api_url
-      N8N_CREDENTIAL_NAME = var.n8n_jwt_credential_name
+      JWT_SECRET_NAME          = aws_secretsmanager_secret.jwt_signing_secret.name
+      N8N_API_URL              = var.n8n_api_url
+      N8N_CREDENTIAL_NAME      = var.n8n_jwt_credential_name
+      AUTHORIZER_FUNCTION_NAME = aws_lambda_function.jwt_authorizer.function_name
     }
   }
 
