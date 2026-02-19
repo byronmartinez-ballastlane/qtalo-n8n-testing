@@ -1,6 +1,3 @@
-// Phase 2 simplified: Just generate signature text for reporting for ALL items
-// Reply.io API doesn't support setting signatures via API
-// Signatures must be set manually in Reply.io UI
 
 const items = $input.all();
 

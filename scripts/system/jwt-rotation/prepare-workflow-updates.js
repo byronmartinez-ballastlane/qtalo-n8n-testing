@@ -1,10 +1,8 @@
-// Store credential IDs and output one item per workflow to update
 const oldData = $('Find Credential From Workflows').first().json;
 const verifyData = $input.first().json;
 
 console.log(`Credential ${verifyData.new_credential_id} verified in project: ${verifyData.project_name}`);
 
-// Output one item per workflow for the loop
 const items = oldData.workflow_ids.map(wfId => ({
   json: {
     old_credential_id: oldData.old_credential_id,

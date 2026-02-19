@@ -1,24 +1,9 @@
-# ============================================================
-# GitHub Actions Repository Secrets
-# ============================================================
-# Creates all secrets needed by the deploy-system-workflows
-# GitHub Actions workflow. Values come from the same config
-# that's in the local .env file.
-#
-# The deploy.py script reads these as env vars at runtime.
-# ============================================================
 
-# ============================================================
-# Data: look up the repo
-# ============================================================
 
 data "github_repository" "this" {
   full_name = "byronmartinez-ballastlane/${var.github_repo}"
 }
 
-# ============================================================
-# Secret: AWS_ROLE_ARN (for OIDC assume-role)
-# ============================================================
 
 resource "github_actions_secret" "aws_role_arn" {
   repository      = data.github_repository.this.name
@@ -26,9 +11,6 @@ resource "github_actions_secret" "aws_role_arn" {
   plaintext_value = module.github_oidc.oidc_role
 }
 
-# ============================================================
-# Secrets: n8n deploy configuration
-# ============================================================
 
 resource "github_actions_secret" "n8n_api_url" {
   repository      = data.github_repository.this.name

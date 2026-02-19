@@ -1,12 +1,3 @@
-/**
- * Qtalo n8n Multi-Tenant Management Lambda
- * 
- * Handles:
- * - Client onboarding (create DynamoDB record + Secrets Manager secret)
- * - Client listing
- * - Workflow ID updates
- * - Template version management
- */
 
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, PutCommand, GetCommand, ScanCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
@@ -219,7 +210,7 @@ async function onboardClient(body) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '')
       .substring(0, 30);
-    const uniqueSuffix = crypto.randomUUID().split('-')[0]; // 8 char hex
+    const uniqueSuffix = crypto.randomUUID().split('-')[0];
     client_id = `${slug}-${uniqueSuffix}`;
   }
   
@@ -277,7 +268,7 @@ async function onboardClient(body) {
     expected_domains: body.expected_domains || [],
     secrets_arn: secretArn,
     template_version: '1.0.0',
-    status: 'pending_deployment',  // Will be 'active' after workflows deployed
+    status: 'pending_deployment',
     workflow_ids: {},
     created_at: timestamp,
     updated_at: timestamp
@@ -288,7 +279,6 @@ async function onboardClient(body) {
     Item: item
   }));
   
-  // Clean up any claiming placeholder records for this task
   if (clickup_task_id) {
     try {
       const claimingRecords = await docClient.send(new ScanCommand({
@@ -298,7 +288,6 @@ async function onboardClient(body) {
         ExpressionAttributeValues: { ':taskId': clickup_task_id, ':claiming': 'claiming' }
       }));
       
-      // Delete all claiming placeholders for this task
       for (const record of claimingRecords.Items || []) {
         await docClient.send(new DeleteCommand({
           TableName: TABLE_NAME,
@@ -308,13 +297,12 @@ async function onboardClient(body) {
       }
     } catch (cleanupError) {
       console.warn('Failed to cleanup claiming placeholders:', cleanupError);
-      // Non-fatal - continue with success response
     }
   }
   
   return response(201, {
     message: 'Client onboarded successfully',
-    client_id,  // Return the generated client_id
+    client_id,
     client: item,
     secrets_arn: secretArn,
     next_steps: [
@@ -334,9 +322,6 @@ async function updateClient(clientId, body) {
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
   
-  // Build update expression dynamically
-  // MULTI-TENANCY: expected_domains is critical for domain validation security
-  // reply_workspace_id: Reply.io workspace name for workspace switching in signature Lambda
   const allowedFields = ['client_name', 'clickup_space_id', 'clickup_task_id', 'template_version', 'status', 'workflow_ids', 'expected_domains', 'reply_workspace_id'];
   
   for (const field of allowedFields) {
@@ -351,7 +336,6 @@ async function updateClient(clientId, body) {
     return response(400, { error: 'No valid fields to update' });
   }
   
-  // Always update updated_at
   updateExpressions.push('#updated_at = :updated_at');
   expressionAttributeNames['#updated_at'] = 'updated_at';
   expressionAttributeValues[':updated_at'] = new Date().toISOString();
@@ -365,7 +349,6 @@ async function updateClient(clientId, body) {
     ReturnValues: 'ALL_NEW'
   }));
   
-  // Clean up any claiming placeholder records for this task
   const clickup_task_id = body.clickup_task_id || result.Attributes?.clickup_task_id;
   if (clickup_task_id) {
     try {
@@ -376,7 +359,6 @@ async function updateClient(clientId, body) {
         ExpressionAttributeValues: { ':taskId': clickup_task_id, ':claiming': 'claiming' }
       }));
       
-      // Delete all claiming placeholders for this task
       for (const record of claimingRecords.Items || []) {
         await docClient.send(new DeleteCommand({
           TableName: TABLE_NAME,
@@ -386,7 +368,6 @@ async function updateClient(clientId, body) {
       }
     } catch (cleanupError) {
       console.warn('Failed to cleanup claiming placeholders:', cleanupError);
-      // Non-fatal - continue with success response
     }
   }
   
@@ -401,7 +382,6 @@ async function deleteClient(clientId) {
     return response(400, { error: 'client_id is required' });
   }
   
-  // Get client to find secret ARN
   const client = await docClient.send(new GetCommand({
     TableName: TABLE_NAME,
     Key: { client_id: clientId }
@@ -411,7 +391,6 @@ async function deleteClient(clientId) {
     return response(404, { error: 'Client not found' });
   }
   
-  // Delete secret
   try {
     await secretsClient.send(new DeleteSecretCommand({
       SecretId: `n8n/clients/${clientId}`,
@@ -421,7 +400,6 @@ async function deleteClient(clientId) {
     console.warn('Failed to delete secret:', error.message);
   }
   
-  // Delete DynamoDB record
   await docClient.send(new DeleteCommand({
     TableName: TABLE_NAME,
     Key: { client_id: clientId }
@@ -433,9 +411,6 @@ async function deleteClient(clientId) {
   });
 }
 
-// ============================================================
-// Workflow Operations
-// ============================================================
 
 async function updateWorkflowIds(body) {
   const { client_id, workflow_ids } = body;
@@ -461,9 +436,6 @@ async function updateWorkflowIds(body) {
   });
 }
 
-// ============================================================
-// Credentials Operations
-// ============================================================
 
 async function getCredentials(clientId) {
   if (!clientId) {
@@ -503,7 +475,6 @@ async function updateCredentials(clientId, body) {
   const secretName = `n8n/clients/${clientId}`;
   
   try {
-    // Get client name from DynamoDB for description
     let clientName = clientId;
     try {
       const clientRecord = await docClient.send(new GetCommand({
@@ -517,7 +488,6 @@ async function updateCredentials(clientId, body) {
       console.log('Could not fetch client name, using clientId:', err.message);
     }
     
-    // Try to get existing credentials first
     let existingCredentials = {};
     try {
       const existing = await secretsClient.send(new GetSecretValueCommand({
@@ -528,10 +498,8 @@ async function updateCredentials(clientId, body) {
       if (error.name !== 'ResourceNotFoundException') {
         throw error;
       }
-      // Secret doesn't exist, we'll create it
     }
     
-    // Merge with existing credentials
     const updatedCredentials = {
       ...existingCredentials,
       ...(reply_api_key && { reply_api_key }),
@@ -542,7 +510,6 @@ async function updateCredentials(clientId, body) {
       ...(reply_io_password && { reply_io_password })
     };
     
-    // Try to update, or create if doesn't exist
     try {
       await secretsClient.send(new UpdateSecretCommand({
         SecretId: secretName,
@@ -550,7 +517,6 @@ async function updateCredentials(clientId, body) {
       }));
     } catch (error) {
       if (error.name === 'ResourceNotFoundException') {
-        // Create the secret
         await secretsClient.send(new CreateSecretCommand({
           Name: secretName,
           SecretString: JSON.stringify(updatedCredentials),
@@ -571,14 +537,10 @@ async function updateCredentials(clientId, body) {
   }
 }
 
-// ============================================================
-// Sync Operations (for Replicator)
-// ============================================================
 
 async function syncClients(body) {
   const { current_template_version = '1.0.0' } = body;
   
-  // Get all active clients
   const result = await docClient.send(new ScanCommand({
     TableName: TABLE_NAME,
     FilterExpression: '#status = :active',
@@ -592,7 +554,6 @@ async function syncClients(body) {
   
   for (const client of clients) {
     if (client.template_version !== current_template_version) {
-      // Get credentials for this client
       try {
         const secretResult = await secretsClient.send(new GetSecretValueCommand({
           SecretId: `n8n/clients/${client.client_id}`

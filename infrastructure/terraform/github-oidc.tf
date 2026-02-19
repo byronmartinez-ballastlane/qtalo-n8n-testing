@@ -1,12 +1,3 @@
-# ============================================================
-# GitHub Actions OIDC Provider + IAM Role
-# ============================================================
-# Allows GitHub Actions to assume an IAM role via OIDC
-# (no static AWS credentials needed as repo secrets).
-#
-# The role has permissions to:
-#   1. Invoke the JWT rotation Lambda (post-deploy step)
-# ============================================================
 
 module "github_oidc" {
   source  = "terraform-module/github-oidc-provider/aws"
@@ -31,9 +22,6 @@ module "github_oidc" {
   }
 }
 
-# ============================================================
-# IAM Policy: Lambda invoke for JWT rotation
-# ============================================================
 
 resource "aws_iam_policy" "github_actions_deploy" {
   name        = "${var.project_name}-github-actions-deploy-${var.environment}"
@@ -60,9 +48,6 @@ resource "aws_iam_policy" "github_actions_deploy" {
   }
 }
 
-# ============================================================
-# Outputs
-# ============================================================
 
 output "github_actions_role_arn" {
   description = "IAM Role ARN for GitHub Actions to assume via OIDC"

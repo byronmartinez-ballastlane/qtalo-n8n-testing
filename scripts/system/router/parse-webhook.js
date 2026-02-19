@@ -1,4 +1,3 @@
-// Parse ClickUp webhook and extract task info
 const webhookData = $input.first().json;
 const body = webhookData.body || webhookData;
 

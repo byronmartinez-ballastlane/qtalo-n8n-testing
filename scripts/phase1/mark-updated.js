@@ -1,6 +1,5 @@
-// Mark updated mailboxes
 const apiResponses = $input.all();
-const originalMailboxes = $('Should Update?', 0).all(); // Get data from Should Update? node's YES output
+const originalMailboxes = $('Should Update?', 0).all();
 
 const results = apiResponses.map((apiItem, index) => {
   const apiResponse = apiItem.json;

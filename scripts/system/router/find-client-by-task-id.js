@@ -1,4 +1,3 @@
-// Check if client was found
 const taskId = $('Parse Webhook').first().json.task_id;
 const response = $input.first().json;
 

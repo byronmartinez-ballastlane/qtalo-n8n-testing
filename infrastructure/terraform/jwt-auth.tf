@@ -1,19 +1,4 @@
-# ============================================================
-# JWT Authentication Infrastructure
-# ============================================================
-# This file contains all resources needed for JWT-based 
-# authentication for the API Gateway:
-# - Secrets Manager secrets for JWT signing key
-# - JWT Authorizer Lambda
-# - Secret Rotation Lambda
-# - EventBridge rule for scheduled rotation
-# - API Gateway Authorizer
-# - API Key and Usage Plan
-# ============================================================
 
-# ============================================================
-# Secrets Manager - JWT Signing Secret
-# ============================================================
 
 resource "aws_secretsmanager_secret" "jwt_signing_secret" {
   name        = "n8n/clients/qtalo/jwt-signing-secret"
@@ -26,7 +11,6 @@ resource "aws_secretsmanager_secret" "jwt_signing_secret" {
   }
 }
 
-# Initial secret value - will be rotated automatically
 resource "aws_secretsmanager_secret_version" "jwt_signing_secret_initial" {
   secret_id = aws_secretsmanager_secret.jwt_signing_secret.id
   secret_string = jsonencode({
@@ -40,17 +24,12 @@ resource "aws_secretsmanager_secret_version" "jwt_signing_secret_initial" {
   }
 }
 
-# Generate initial random secret
 resource "random_password" "initial_jwt_secret" {
-  length  = 64 # 32 bytes in hex = 64 characters
+  length  = 64
   special = false
 }
 
-# ============================================================
-# JWT Authorizer Lambda
-# ============================================================
 
-# IAM Role for JWT Authorizer Lambda
 resource "aws_iam_role" "jwt_authorizer_role" {
   name = "${var.project_name}-jwt-authorizer-role-${var.environment}"
 
@@ -73,7 +52,6 @@ resource "aws_iam_role" "jwt_authorizer_role" {
   }
 }
 
-# IAM Policy for JWT Authorizer Lambda
 resource "aws_iam_role_policy" "jwt_authorizer_policy" {
   name = "${var.project_name}-jwt-authorizer-policy-${var.environment}"
   role = aws_iam_role.jwt_authorizer_role.id
@@ -101,7 +79,6 @@ resource "aws_iam_role_policy" "jwt_authorizer_policy" {
   })
 }
 
-# Zip the JWT Authorizer Lambda code
 data "archive_file" "jwt_authorizer_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../jwt-authorizer"
@@ -109,7 +86,6 @@ data "archive_file" "jwt_authorizer_zip" {
   excludes    = ["node_modules", "test.js", "*.zip"]
 }
 
-# Upload JWT Authorizer Lambda to S3
 resource "aws_s3_object" "jwt_authorizer_code" {
   bucket = aws_s3_bucket.lambda_deployments.bucket
   key    = "jwt-authorizer/lambda-${data.archive_file.jwt_authorizer_zip.output_md5}.zip"
@@ -122,7 +98,6 @@ resource "aws_s3_object" "jwt_authorizer_code" {
   }
 }
 
-# JWT Authorizer Lambda Function
 resource "aws_lambda_function" "jwt_authorizer" {
   function_name = "${var.project_name}-jwt-authorizer-${var.environment}"
   role          = aws_iam_role.jwt_authorizer_role.arn
@@ -146,7 +121,6 @@ resource "aws_lambda_function" "jwt_authorizer" {
   }
 }
 
-# CloudWatch Log Group for JWT Authorizer
 resource "aws_cloudwatch_log_group" "jwt_authorizer_logs" {
   name              = "/aws/lambda/${aws_lambda_function.jwt_authorizer.function_name}"
   retention_in_days = 14
@@ -157,11 +131,7 @@ resource "aws_cloudwatch_log_group" "jwt_authorizer_logs" {
   }
 }
 
-# ============================================================
-# Secret Rotation Lambda
-# ============================================================
 
-# IAM Role for Secret Rotation Lambda
 resource "aws_iam_role" "secret_rotation_role" {
   name = "${var.project_name}-secret-rotation-role-${var.environment}"
 
@@ -184,7 +154,6 @@ resource "aws_iam_role" "secret_rotation_role" {
   }
 }
 
-# IAM Policy for Secret Rotation Lambda
 resource "aws_iam_role_policy" "secret_rotation_policy" {
   name = "${var.project_name}-secret-rotation-policy-${var.environment}"
   role = aws_iam_role.secret_rotation_role.id
@@ -220,7 +189,6 @@ resource "aws_iam_role_policy" "secret_rotation_policy" {
   })
 }
 
-# Zip the Secret Rotation Lambda code
 data "archive_file" "secret_rotation_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../secret-rotation"
@@ -228,7 +196,6 @@ data "archive_file" "secret_rotation_zip" {
   excludes    = ["node_modules", "test.js", "*.zip"]
 }
 
-# Upload Secret Rotation Lambda to S3
 resource "aws_s3_object" "secret_rotation_code" {
   bucket = aws_s3_bucket.lambda_deployments.bucket
   key    = "secret-rotation/lambda-${data.archive_file.secret_rotation_zip.output_md5}.zip"
@@ -241,7 +208,6 @@ resource "aws_s3_object" "secret_rotation_code" {
   }
 }
 
-# Secret Rotation Lambda Function
 resource "aws_lambda_function" "secret_rotation" {
   function_name = "${var.project_name}-secret-rotation-${var.environment}"
   role          = aws_iam_role.secret_rotation_role.arn
@@ -268,7 +234,6 @@ resource "aws_lambda_function" "secret_rotation" {
   }
 }
 
-# CloudWatch Log Group for Secret Rotation
 resource "aws_cloudwatch_log_group" "secret_rotation_logs" {
   name              = "/aws/lambda/${aws_lambda_function.secret_rotation.function_name}"
   retention_in_days = 14
@@ -279,11 +244,7 @@ resource "aws_cloudwatch_log_group" "secret_rotation_logs" {
   }
 }
 
-# ============================================================
-# EventBridge Rule for Scheduled Rotation
-# ============================================================
 
-# EventBridge rule to trigger rotation every 6 hours
 resource "aws_cloudwatch_event_rule" "secret_rotation_schedule" {
   name                = "${var.project_name}-secret-rotation-schedule-${var.environment}"
   description         = "Trigger JWT secret rotation every 6 hours"
@@ -295,14 +256,12 @@ resource "aws_cloudwatch_event_rule" "secret_rotation_schedule" {
   }
 }
 
-# EventBridge target - the rotation Lambda
 resource "aws_cloudwatch_event_target" "secret_rotation_target" {
   rule      = aws_cloudwatch_event_rule.secret_rotation_schedule.name
   target_id = "secret-rotation-lambda"
   arn       = aws_lambda_function.secret_rotation.arn
 }
 
-# Permission for EventBridge to invoke the rotation Lambda
 resource "aws_lambda_permission" "allow_eventbridge_rotation" {
   statement_id  = "AllowEventBridgeInvoke"
   action        = "lambda:InvokeFunction"
@@ -311,9 +270,6 @@ resource "aws_lambda_permission" "allow_eventbridge_rotation" {
   source_arn    = aws_cloudwatch_event_rule.secret_rotation_schedule.arn
 }
 
-# ============================================================
-# API Gateway Authorizer
-# ============================================================
 
 resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   name                             = "jwt-authorizer"
@@ -322,10 +278,9 @@ resource "aws_api_gateway_authorizer" "jwt_authorizer" {
   authorizer_credentials           = aws_iam_role.api_gateway_authorizer_role.arn
   type                             = "TOKEN"
   identity_source                  = "method.request.header.Authorization"
-  authorizer_result_ttl_in_seconds = 300 # Cache auth results for 5 minutes
+  authorizer_result_ttl_in_seconds = 300
 }
 
-# IAM Role for API Gateway to invoke the authorizer Lambda
 resource "aws_iam_role" "api_gateway_authorizer_role" {
   name = "${var.project_name}-api-gw-authorizer-role-${var.environment}"
 
@@ -364,7 +319,6 @@ resource "aws_iam_role_policy" "api_gateway_authorizer_policy" {
   })
 }
 
-# Permission for API Gateway to invoke JWT Authorizer Lambda
 resource "aws_lambda_permission" "api_gateway_authorizer" {
   statement_id  = "AllowAPIGatewayAuthorizer"
   action        = "lambda:InvokeFunction"
@@ -373,9 +327,6 @@ resource "aws_lambda_permission" "api_gateway_authorizer" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/authorizers/${aws_api_gateway_authorizer.jwt_authorizer.id}"
 }
 
-# ============================================================
-# API Key (Simple - No Usage Plan)
-# ============================================================
 
 resource "aws_api_gateway_api_key" "n8n_api_key" {
   name    = "${var.project_name}-api-key-${var.environment}"
@@ -387,9 +338,7 @@ resource "aws_api_gateway_api_key" "n8n_api_key" {
   }
 }
 
-# Note: API Gateway API Key value is stored in n8n, not in Secrets Manager
 
-# Usage Plan (required even for simple API key)
 resource "aws_api_gateway_usage_plan" "n8n_usage_plan" {
   name        = "${var.project_name}-usage-plan-${var.environment}"
   description = "Usage plan for n8n API integration"
@@ -399,7 +348,6 @@ resource "aws_api_gateway_usage_plan" "n8n_usage_plan" {
     stage  = aws_api_gateway_stage.api.stage_name
   }
 
-  # No throttling or quota limits - just enable API key requirement
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -412,9 +360,6 @@ resource "aws_api_gateway_usage_plan_key" "n8n_usage_plan_key" {
   usage_plan_id = aws_api_gateway_usage_plan.n8n_usage_plan.id
 }
 
-# ============================================================
-# Outputs
-# ============================================================
 
 output "jwt_authorizer_lambda_arn" {
   description = "ARN of the JWT Authorizer Lambda"

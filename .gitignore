@@ -49,6 +49,7 @@ replyio-lambda-deploy/
 
 # Local scripts with credentials
 lo.sh
+removed_comments_log.md
 
 # Documentation / Confluence upload scripts
 docs/

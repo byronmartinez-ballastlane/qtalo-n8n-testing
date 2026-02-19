@@ -1,4 +1,3 @@
-// Collect sequence cloning results
 const processData = $('Process Sequences Spec').first().json;
 const cloneResults = $input.all();
 const sequencesToSkip = processData.sequences_to_skip || [];

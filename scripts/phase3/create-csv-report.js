@@ -1,8 +1,6 @@
-// Generate CSV report for custom fields
 const data = $input.first().json;
 const csvData = data.csv_data || [];
 
-// Build CSV
 const headers = ['Title', 'Type', 'Status', 'Field ID', 'Error'];
 const rows = csvData.map(row => [
   row.title || '',

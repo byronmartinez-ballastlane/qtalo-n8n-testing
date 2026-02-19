@@ -1,8 +1,6 @@
-// Finalize schedule result
 const prevData = $('Should Set Default?').first().json;
 const setDefaultResult = $input.first();
 
-// Check HTTP status from the result
 const httpStatus = setDefaultResult.json?.statusCode || 200;
 const success = httpStatus >= 200 && httpStatus < 300;
 

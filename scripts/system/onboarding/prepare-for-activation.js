@@ -1,4 +1,3 @@
-// Pass through the collected data for activation step
 const injectedData = $('Inject Phase IDs to Orchestrator').first().json;
 
 return [{

@@ -1,4 +1,3 @@
-// Generate Phase 1 summary comment and prepare CSV for attachment
 const phase1Result = $input.first().json;
 const taskId = $('Get Task Details').first().json.id;
 

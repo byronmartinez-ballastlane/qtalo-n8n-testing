@@ -1,5 +1,3 @@
-// Find the credential ID by scanning workflows for a credential with the target name
-// Also identify all workflows that use this credential
 const requestData = $('Validate Request').first().json;
 const workflows = $input.all().map(i => i.json);
 const targetName = requestData.credential_name;
@@ -19,7 +17,6 @@ for (const wf of workflows) {
         foundCredId = credInfo.id;
         foundCredType = credType;
         
-        // Add workflow ID to list if not already there
         if (!workflowsUsingCred.find(w => w === wf.id)) {
           workflowsUsingCred.push(wf.id);
         }
@@ -32,7 +29,6 @@ if (!foundCredId) {
   throw new Error(`Credential not found in any workflow: ${targetName}`);
 }
 
-// Prepare credential data based on type
 let credentialData;
 if (foundCredType === 'jwtAuth') {
   credentialData = { keyType: 'passphrase', secret: requestData.new_jwt_token, privateKey: '', publicKey: '', algorithm: 'HS256' };

@@ -1,10 +1,3 @@
-# ============================================================
-# HTTP API (API Gateway v2) for Signature Automation
-# ============================================================
-# This creates an HTTP API that proxies requests to the
-# replyio-signature-automation Lambda function.
-# The endpoint is: https://{api-id}.execute-api.{region}.amazonaws.com
-# ============================================================
 
 resource "aws_apigatewayv2_api" "signature_api" {
   name          = "replyio-signature-automation-api"
@@ -26,7 +19,6 @@ resource "aws_apigatewayv2_api" "signature_api" {
   }
 }
 
-# Integration with Lambda
 resource "aws_apigatewayv2_integration" "signature_lambda" {
   api_id                 = aws_apigatewayv2_api.signature_api.id
   integration_type       = "AWS_PROXY"
@@ -36,14 +28,12 @@ resource "aws_apigatewayv2_integration" "signature_lambda" {
   timeout_milliseconds   = 30000
 }
 
-# Default route - catches all requests
 resource "aws_apigatewayv2_route" "signature_default" {
   api_id    = aws_apigatewayv2_api.signature_api.id
   route_key = "$default"
   target    = "integrations/${aws_apigatewayv2_integration.signature_lambda.id}"
 }
 
-# Auto-deploy stage
 resource "aws_apigatewayv2_stage" "signature_default" {
   api_id      = aws_apigatewayv2_api.signature_api.id
   name        = "$default"
@@ -61,7 +51,6 @@ resource "aws_apigatewayv2_stage" "signature_default" {
   }
 }
 
-# Lambda permission for API Gateway v2 to invoke the function
 resource "aws_lambda_permission" "signature_api_gateway" {
   statement_id  = "AllowAPIGatewayV2Invoke"
   action        = "lambda:InvokeFunction"
@@ -70,9 +59,6 @@ resource "aws_lambda_permission" "signature_api_gateway" {
   source_arn    = "${aws_apigatewayv2_api.signature_api.execution_arn}/*/*"
 }
 
-# ============================================================
-# Outputs
-# ============================================================
 
 output "signature_api_endpoint" {
   description = "HTTP API endpoint for signature automation"

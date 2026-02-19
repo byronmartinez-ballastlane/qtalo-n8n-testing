@@ -1,9 +1,7 @@
-// Get the orchestrator workflow and inject Phase workflow IDs
 const orchestratorWorkflow = $input.first().json;
 const collectedIds = $('Collect Workflow IDs').first().json;
 const workflowIds = collectedIds.workflow_ids;
 
-// Get the Phase workflow IDs
 const phase1Id = workflowIds.phase1 || '';
 const phase2Id = workflowIds.phase2 || '';
 const phase3Id = workflowIds.phase3 || '';
@@ -13,10 +11,8 @@ console.log('- Phase 1:', phase1Id);
 console.log('- Phase 2:', phase2Id);
 console.log('- Phase 3:', phase3Id);
 
-// Update nodes that have placeholder workflow IDs
 const updatedNodes = orchestratorWorkflow.nodes.map(node => {
   if (node.parameters && node.parameters.workflowId) {
-    // Replace Phase workflow ID placeholders
     if (node.parameters.workflowId === '{{PHASE1_WORKFLOW_ID}}' || node.name.includes('Phase 1')) {
       node.parameters.workflowId = phase1Id;
       console.log(`Updated ${node.name} with Phase 1 ID: ${phase1Id}`);
@@ -33,7 +29,6 @@ const updatedNodes = orchestratorWorkflow.nodes.map(node => {
   return node;
 });
 
-// Prepare updated workflow for API
 const updatedWorkflow = {
   name: orchestratorWorkflow.name,
   nodes: updatedNodes,

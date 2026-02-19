@@ -1,4 +1,3 @@
-// Process schedule creation result
 const prevConfig = $('Check Schedule Exists').first().json;
 const createResult = $input.first().json;
 

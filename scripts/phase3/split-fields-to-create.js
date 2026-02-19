@@ -1,4 +1,3 @@
-// Split fields to create into individual items
 const data = $input.first().json;
 const fieldsToCreate = data.fields_to_create || [];
 

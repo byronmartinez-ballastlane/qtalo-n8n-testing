@@ -1,4 +1,3 @@
-// Smart status tracking with execution locking to prevent duplicates
 const client = $input.first().json;
 const webhookData = $('Parse Webhook').first().json;
 const newStatus = webhookData.new_status;

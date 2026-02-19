@@ -1,7 +1,5 @@
-// Return mailboxes data to orchestrator for Phase 3 sequence assignment
 const allResults = $('Combine All Results').all();
 
-// Extract successfully created/existing mailboxes with id and email
 const mailboxes = allResults
   .map(item => item.json)
   .filter(m => m.id && m.email && !m.error)

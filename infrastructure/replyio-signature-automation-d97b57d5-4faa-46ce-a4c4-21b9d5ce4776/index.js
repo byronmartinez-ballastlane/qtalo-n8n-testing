@@ -9,7 +9,6 @@ const secretsClient = new SecretsManagerClient({ region: REGION });
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch credentials from AWS Secrets Manager
 async function getClientCredentials(clientId) {
   try {
     const secretName = `n8n/clients/${clientId}`;
@@ -32,7 +31,6 @@ async function getClientCredentials(clientId) {
   }
 }
 
-// Helper to send webhook notification via GET with query parameters
 async function sendWebhook(webhookUrl, data) {
   if (!webhookUrl) {
     console.log('No webhook URL provided, skipping notification');
@@ -41,7 +39,6 @@ async function sendWebhook(webhookUrl, data) {
 
   return new Promise((resolve, reject) => {
     try {
-      // Encode data as query parameters
       const params = new URLSearchParams({
         status: data.status,
         timestamp: data.timestamp,
@@ -49,7 +46,6 @@ async function sendWebhook(webhookUrl, data) {
       });
       
       const url = new URL(webhookUrl);
-      // Append encoded data to URL query string
       url.search = params.toString();
       
       const options = {
@@ -91,12 +87,10 @@ exports.handler = async (event, context) => {
     
     console.log('Received event body:', JSON.stringify(body, null, 2));
     
-    // Support both direct credentials OR client_id for Secrets Manager lookup
     let replyioEmail = body.replyioEmail;
     let replyioPassword = body.replyioPassword;
     const { client_id, accounts, async, webhookUrl } = body;
     
-    // If client_id is provided, fetch credentials from Secrets Manager
     if (client_id && (!replyioEmail || !replyioPassword)) {
       console.log(`client_id provided: ${client_id}, fetching credentials from Secrets Manager...`);
       const creds = await getClientCredentials(client_id);
@@ -157,7 +151,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate accounts array structure
     if (accounts.length === 0) {
       return {
         statusCode: 400,
@@ -174,7 +167,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate each account has required fields
     const accountErrors = [];
     accounts.forEach((account, index) => {
       const missing = [];
@@ -205,9 +197,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // If async mode, process everything then send webhook
-    // Note: We CANNOT return 202 early - Lambda will terminate
-    // So we accept the API Gateway timeout and use webhook for results
     if (async === true) {
       console.log('Async mode enabled - processing will complete and send webhook');
       console.log('Note: API Gateway may timeout (503) but Lambda continues processing');
@@ -216,7 +205,6 @@ exports.handler = async (event, context) => {
         const result = await processSignatures(replyioEmail, replyioPassword, accounts);
         console.log('Processing completed successfully:', JSON.stringify(result, null, 2));
         
-        // Send webhook notification if URL provided
         if (webhookUrl) {
           console.log('Sending results to webhook:', webhookUrl);
           await sendWebhook(webhookUrl, {
@@ -235,7 +223,6 @@ exports.handler = async (event, context) => {
       } catch (error) {
         console.error('Processing error:', error);
         
-        // Send error to webhook if URL provided
         if (webhookUrl) {
           try {
             await sendWebhook(webhookUrl, {
@@ -253,7 +240,6 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Synchronous processing (original behavior)
     console.log('Starting synchronous processing...');
     const result = await processSignatures(replyioEmail, replyioPassword, accounts);
     return result;
@@ -299,29 +285,23 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
 
     const page = await browser.newPage();
     
-    // Enhanced anti-detection
     await page.evaluateOnNewDocument(() => {
-      // Remove webdriver property
       Object.defineProperty(navigator, 'webdriver', {
         get: () => false,
       });
       
-      // Mock languages
       Object.defineProperty(navigator, 'languages', {
         get: () => ['en-US', 'en'],
       });
       
-      // Mock plugins
       Object.defineProperty(navigator, 'plugins', {
         get: () => [1, 2, 3, 4, 5],
       });
       
-      // Mock chrome property
       window.chrome = {
         runtime: {},
       };
       
-      // Mock permissions
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) => (
         parameters.name === 'notifications' ?
@@ -329,7 +309,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           originalQuery(parameters)
       );
       
-      // Override the automation detection
       Object.defineProperty(navigator, 'maxTouchPoints', {
         get: () => 1,
       });
@@ -343,7 +322,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
 
     console.log('Navigating directly to Reply.io email accounts settings...');
     
-    // Navigate directly to the email accounts settings page
     await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
       waitUntil: 'domcontentloaded', 
       timeout: 60000 
@@ -357,11 +335,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     console.log('Page title:', await page.title());
     console.log('Page content length:', pageContent.length);
     
-    // Take screenshot for debugging
     const screenshot = await page.screenshot({ encoding: 'base64' });
     console.log('Screenshot taken, length:', screenshot.length);
     
-    // Check if we're on a login page or the email accounts page
     const isLoginPage = currentUrl.includes('/login') || 
                         pageContent.toLowerCase().includes('sign in') ||
                         pageContent.toLowerCase().includes('log in');
@@ -370,11 +346,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     
     if (!isLoginPage) {
       console.log('✅ Already on email accounts page or authenticated area!');
-      // Continue to email account processing
     } else {
       console.log('🔐 On login page, attempting to authenticate...');
     
-    // Check for CAPTCHA or blocking
     const hasCaptcha = pageContent.toLowerCase().includes('captcha') || 
                        pageContent.toLowerCase().includes('recaptcha') ||
                        pageContent.toLowerCase().includes('cloudflare');
@@ -395,7 +369,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     });
     console.log('Found inputs:', JSON.stringify(inputTypes));
     
-    // Try multiple selectors for email input
     const emailSelectors = [
       'input[type="email"]',
       'input[name="email"]',
@@ -419,7 +392,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
       }
     }
     
-    // If still not found, try to find by evaluating visible inputs
     if (!emailInput) {
       console.log('Trying to find first visible input...');
       emailInput = await page.evaluateHandle(() => {
@@ -451,7 +423,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     await emailInput.type(replyioEmail, { delay: 120 });
     await wait(1000);
     
-    // Find password input
     const passwordSelectors = [
       'input[type="password"]',
       'input[name="password"]',
@@ -503,11 +474,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           }
         }
       } catch (e) {
-        // Continue to next selector
       }
     }
     
-    // Try finding by text content if selectors failed
     if (!submitButton) {
       submitButton = await page.evaluateHandle(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
@@ -551,7 +520,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     
     console.log('Login successful, navigated to:', page.url());
     
-    // Navigate to email accounts page after login
     await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
       waitUntil: 'networkidle0',
       timeout: 60000 
@@ -559,7 +527,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     await wait(3000);
     }
     
-    // Now we should be on the email accounts page
     console.log('Current URL:', page.url());
     console.log('Processing email accounts...');
 
@@ -572,7 +539,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
       console.log(`[${i + 1}/${accounts.length}] Processing ${account.email}...`);
       
       try {
-        // If accountId is provided, navigate directly to the account edit page
         if (account.accountId) {
           console.log(`Navigating directly to account ${account.accountId} edit page...`);
           const accountUrl = `https://run.reply.io/Dashboard/Material#/settings/email-accounts/${account.accountId}/other/edit`;
@@ -581,20 +547,15 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           
           console.log(`Navigated to: ${page.url()}`);
           
-          // Screenshot removed for performance - only taken on errors
         } else {
-          // Legacy path: search for account on main page and click it
           console.log(`No accountId provided, searching for ${account.email} on page...`);
         
-          // Take a screenshot of the email accounts page
           const emailAccountsScreenshot = await page.screenshot({ encoding: 'base64' });
           console.log(`Email accounts page screenshot length: ${emailAccountsScreenshot.length}`);
           
-          // Get page content for debugging
           const pageText = await page.evaluate(() => document.body.innerText);
           console.log(`Page text preview (first 500 chars): ${pageText.substring(0, 500)}`);
           
-          // Check all text elements on page
           const allEmails = await page.evaluate(() => {
             const elements = Array.from(document.querySelectorAll('*'));
             const emailRegex = /[\w\.-]+@[\w\.-]+\.\w+/g;
@@ -621,7 +582,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           continue;
         }
         
-        // Try to find and click the account with detailed logging
         const clickResult = await page.evaluate((email) => {
           const elements = Array.from(document.querySelectorAll('*'));
           const accountEl = elements.find(el => el.textContent.trim() === email || el.textContent.includes(email));
@@ -632,7 +592,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           
           console.log('Found element with email:', accountEl.tagName, accountEl.className);
           
-          // Try different parent containers
           const possibleRows = [
             accountEl.closest('tr'),
             accountEl.closest('div[role="row"]'),
@@ -646,7 +605,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           console.log('Found possible rows:', possibleRows.length);
           
           if (possibleRows.length === 0) {
-            // Try clicking the element directly
             console.log('No row found, trying to click element directly');
             accountEl.click();
             return { success: true, method: 'direct element click' };
@@ -655,7 +613,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           const row = possibleRows[0];
           console.log('Using row:', row.tagName, row.className);
           
-          // Look for ALL interactive elements, not just buttons
           const allInteractive = row.querySelectorAll('button, a, [role="button"], [onclick], svg, path');
           console.log('Found interactive elements in row:', allInteractive.length);
           
@@ -685,19 +642,17 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
               hasSvg: btn.querySelector('svg') !== null
             });
             
-            // Look for edit/settings/menu buttons
             if (btnText.includes('edit') || btnText.includes('setting') || btnText.includes('...') ||
                 ariaLabel.includes('edit') || ariaLabel.includes('setting') || ariaLabel.includes('menu') || ariaLabel.includes('more') ||
                 title.includes('edit') || title.includes('setting') || title.includes('menu') ||
                 className.includes('edit') || className.includes('setting') || className.includes('menu') || className.includes('more') ||
-                (btn.querySelector('svg') && btnText.length < 5)) { // SVG icon button
+                (btn.querySelector('svg') && btnText.length < 5)) {
               console.log('✅ Clicking action button');
               btn.click();
               return { success: true, method: 'action button click', buttonInfo: { text: btnText, ariaLabel, title, className } };
             }
           }
           
-          // Try clicking the row itself
           console.log('No action button found, clicking row directly');
           row.click();
           return { success: true, method: 'row click' };
@@ -711,21 +666,16 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           continue;
         }
         
-        // Wait for drawer to open
         console.log('Waiting for drawer to open...');
         await wait(4000);
 
-        // Take screenshot after clicking to see drawer
         const drawerScreenshot = await page.screenshot({ encoding: 'base64', fullPage: false });
         console.log('Drawer screenshot length:', drawerScreenshot.length);
-        } // End of else block (legacy path)
+        }
 
-        // Now click Signature tab (works for both direct navigation and legacy path)
-        // Detect drawer and click Signature tab
         const tabClickResult = await page.evaluate(() => {
           console.log('Searching for Signature tab/button on entire page first...');
           
-          // Strategy 1: Search entire page for any visible "Signature" button/tab FIRST
           const allButtons = document.querySelectorAll('button, [role="tab"], a, div[role="button"], span');
           console.log(`Total buttons/tabs on page: ${allButtons.length}`);
           
@@ -747,7 +697,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
             return { success: true, method: 'page-wide search', tabText: signatureElements[0].textContent.trim() };
           }
           
-          // Strategy 2: If no Signature button found, look for drawer and search within it
           console.log('No Signature button found on page, looking for drawer...');
           
           const drawerSelectors = [
@@ -796,18 +745,14 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           continue;
         }
         
-        // Wait for signature tab content to load
         console.log('Waiting for signature tab content...');
         await wait(2000);
 
-        // Try to find signature editor and insert signature
         const insertResult = await page.evaluate((signature) => {
           console.log('Looking for signature editor...');
           
-          // Look for contenteditable div or textarea - try multiple strategies
           let editor = null;
           
-          // Strategy 1: Look for any contenteditable that's visible
           const contentEditables = document.querySelectorAll('div[contenteditable="true"], [contenteditable="true"]');
           console.log(`Found ${contentEditables.length} contenteditable elements`);
           
@@ -826,7 +771,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
             }
           }
           
-          // Strategy 2: Look for textarea
           if (!editor) {
             console.log('No visible contenteditable found, trying textareas...');
             const textareas = document.querySelectorAll('textarea');
@@ -848,7 +792,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
             }
           }
           
-          // Strategy 3: Look for iframe (rich text editor)
           if (!editor) {
             console.log('No textarea found, checking for iframes...');
             const iframes = document.querySelectorAll('iframe');
@@ -875,7 +818,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           }
           
           if (!editor) {
-            // Log all elements for debugging
             const allElements = document.querySelectorAll('*');
             let editableCount = 0;
             for (const el of allElements) {
@@ -891,17 +833,14 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           
           console.log(`Using editor: ${editor.tagName}, className: ${editor.className ? editor.className.substring(0, 50) : 'N/A'}`);
           
-          // Clear any existing content first
           if (editor.tagName === 'TEXTAREA') {
             editor.value = '';
           } else {
             editor.innerHTML = '';
           }
           
-          // Focus the editor first
           editor.focus();
           
-          // Insert the signature
           if (editor.tagName === 'TEXTAREA') {
             editor.value = signature;
             editor.dispatchEvent(new Event('input', { bubbles: true }));
@@ -909,7 +848,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
             editor.dispatchEvent(new Event('blur', { bubbles: true }));
           } else {
             editor.innerHTML = signature;
-            // Trigger more events for contenteditable
             editor.dispatchEvent(new Event('input', { bubbles: true }));
             editor.dispatchEvent(new Event('change', { bubbles: true }));
             editor.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
@@ -932,12 +870,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           continue;
         }
         
-        // Screenshot removed for performance
         await wait(500);
         
-        // Check if signature is actually visible in the editor
         const signatureVisible = await page.evaluate(() => {
-          // Check all iframes
           const iframes = document.querySelectorAll('iframe');
           for (const iframe of iframes) {
             try {
@@ -947,11 +882,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
                 return { visible: true, content: content.substring(0, 200) };
               }
             } catch (e) {
-              // Can't access iframe
             }
           }
           
-          // Check contenteditable divs
           const editables = document.querySelectorAll('[contenteditable="true"]');
           for (const el of editables) {
             if (el.innerHTML && el.innerHTML.length > 10) {
@@ -963,19 +896,17 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
         });
         console.log('Signature visibility check:', JSON.stringify(signatureVisible));
         
-        // Click somewhere outside the editor to trigger blur/save
         await page.evaluate(() => {
           const signatureTab = Array.from(document.querySelectorAll('*')).find(el => 
             el.textContent.trim() === 'Signature' && el.tagName === 'BUTTON'
           );
           if (signatureTab) {
-            signatureTab.click(); // Click the tab itself to blur the editor
+            signatureTab.click();
           }
         });
         
         await wait(1000);
 
-        // Find and click save button
         const saveResult = await page.evaluate(() => {
           const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
           console.log(`Found ${buttons.length} buttons`);
@@ -1010,15 +941,12 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
         console.log(`Save button click result:`, JSON.stringify(saveResult));
         
         if (saveResult.success) {
-          await wait(2000); // Wait for save to complete
+          await wait(2000);
           
-          // Verify signature was saved by checking if still in editor or for success message
           const verifyResult = await page.evaluate(() => {
-            // Check for success toast/notification
             const notifications = document.body.innerText.toLowerCase();
             const hasSuccess = notifications.includes('saved') || notifications.includes('success') || notifications.includes('updated');
             
-            // Check if signature still in editor
             let signatureStillPresent = false;
             const iframes = document.querySelectorAll('iframe');
             for (const iframe of iframes) {
@@ -1030,7 +958,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
                   break;
                 }
               } catch (e) {
-                // Can't access
               }
             }
             
@@ -1047,7 +974,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
           failCount++;
         }
 
-        // Don't navigate away - we'll go directly to next account if there is one
         console.log(`Completed processing ${account.email}. Moving to next account...`);
         await wait(500);
 
@@ -1057,7 +983,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
         results.push({ email: account.email, success: false, error: error.message });
         failCount++;
         
-        // Only try to recover if there are more accounts to process
         if (i < accounts.length - 1) {
           console.log('Attempting to recover for next account...');
           await wait(2000);
@@ -1068,7 +993,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts) {
     console.log(`Processing complete. Success: ${successCount}, Failed: ${failCount}`);
     console.log('Results:', JSON.stringify(results, null, 2));
     
-    // Add detailed summary
     const summary = {
       total: accounts.length,
       successful: successCount,

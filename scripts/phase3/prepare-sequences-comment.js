@@ -1,5 +1,3 @@
-// Generate sequences completion comment
-// Get data from Prepare Sequences CSV Binary node (before HTTP upload overwrites it)
 const data = $('Prepare Sequences CSV Binary').first().json;
 const summary = data.summary;
 

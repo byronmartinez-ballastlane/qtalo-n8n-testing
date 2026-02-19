@@ -1,6 +1,4 @@
-# AWS Backup for DynamoDB table - daily backups with 35-day retention
 
-# Backup vault
 resource "aws_backup_vault" "dynamodb" {
   name = "${var.project_name}-dynamodb-backup-${var.environment}"
 
@@ -11,17 +9,16 @@ resource "aws_backup_vault" "dynamodb" {
   }
 }
 
-# Backup plan - daily at 3:00 AM UTC, 35-day retention
 resource "aws_backup_plan" "dynamodb_daily" {
   name = "${var.project_name}-dynamodb-daily-${var.environment}"
 
   rule {
     rule_name         = "daily-backup"
     target_vault_name = aws_backup_vault.dynamodb.name
-    schedule          = "cron(0 3 * * ? *)" # Daily at 3:00 AM UTC
+    schedule          = "cron(0 3 * * ? *)"
 
     lifecycle {
-      delete_after = 35 # Keep backups for 35 days
+      delete_after = 35
     }
   }
 
@@ -32,7 +29,6 @@ resource "aws_backup_plan" "dynamodb_daily" {
   }
 }
 
-# IAM role for AWS Backup
 resource "aws_iam_role" "backup" {
   name = "${var.project_name}-backup-role-${var.environment}"
 
@@ -56,7 +52,6 @@ resource "aws_iam_role" "backup" {
   }
 }
 
-# Attach the AWS managed backup policies
 resource "aws_iam_role_policy_attachment" "backup" {
   role       = aws_iam_role.backup.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
@@ -67,7 +62,6 @@ resource "aws_iam_role_policy_attachment" "backup_restores" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
 }
 
-# Backup selection - target the DynamoDB table
 resource "aws_backup_selection" "dynamodb" {
   name         = "${var.project_name}-dynamodb-${var.environment}"
   iam_role_arn = aws_iam_role.backup.arn

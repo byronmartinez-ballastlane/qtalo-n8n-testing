@@ -1,11 +1,7 @@
-// Process custom fields spec from ClickUp config
 const config = $('Start').first().json;
 const existingFieldsResponse = $input.first().json || [];
 const taskId = config.task_id;
 
-// ============================================================
-// CHECK FOR REPLY.IO AUTH ERRORS (401/403)
-// ============================================================
 if (existingFieldsResponse.error || existingFieldsResponse.statusCode === 401 || existingFieldsResponse.statusCode === 403 || 
     existingFieldsResponse.message?.includes('Unauthorized') || existingFieldsResponse.message?.includes('Forbidden')) {
   
@@ -14,7 +10,6 @@ if (existingFieldsResponse.error || existingFieldsResponse.statusCode === 401 ||
   
   console.error(`❌ Reply.io Auth Error (${statusCode}): ${errorMsg}`);
   
-  // Try to post error comment to ClickUp
   if (taskId && taskId !== 'unknown') {
     try {
       await this.helpers.request({
@@ -37,20 +32,14 @@ if (existingFieldsResponse.error || existingFieldsResponse.statusCode === 401 ||
   
   throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);
 }
-// ============================================================
 
 const existingFields = Array.isArray(existingFieldsResponse) ? existingFieldsResponse : [];
 
-// Get custom fields spec from config - start with provided spec or empty array
 let customFieldsSpec = config.custom_fields_spec || [];
 if (!Array.isArray(customFieldsSpec)) {
   customFieldsSpec = [];
 }
 
-// ============================================================
-// AUTO-ADD 'Lead Stage' field if not already in spec
-// Per Devin: "We just want a simple custom field 'Lead Stage' (text)"
-// ============================================================
 const hasLeadStage = customFieldsSpec.some(f => 
   f.name && f.name.toLowerCase() === 'lead stage'
 );
@@ -62,9 +51,7 @@ if (!hasLeadStage) {
     type: 'text'
   });
 }
-// ============================================================
 
-// Build map of existing fields by title (lowercase for comparison)
 const existingByTitle = {};
 if (Array.isArray(existingFields)) {
   existingFields.forEach(field => {
@@ -74,7 +61,6 @@ if (Array.isArray(existingFields)) {
   });
 }
 
-// Map text/number to Reply.io field type (0=text, 1=number)
 const mapFieldType = (type) => {
   const t = String(type).toLowerCase();
   return t === 'number' ? 1 : 0;
@@ -84,18 +70,16 @@ const fieldsToCreate = [];
 const fieldsToSkip = [];
 
 customFieldsSpec.forEach(specField => {
-  const fieldTitle = specField.name; // ClickUp uses 'name', Reply uses 'title'
+  const fieldTitle = specField.name;
   const fieldType = mapFieldType(specField.type || 'text');
   const existing = existingByTitle[fieldTitle.toLowerCase()];
   
   if (!existing) {
-    // Field doesn't exist - create it
     fieldsToCreate.push({
       title: fieldTitle,
       type: fieldType
     });
   } else {
-    // Field exists - skip
     fieldsToSkip.push({
       title: fieldTitle,
       type: fieldType,
@@ -105,7 +89,6 @@ customFieldsSpec.forEach(specField => {
   }
 });
 
-// If no fields to process at all (unlikely now with Lead Stage auto-add)
 if (fieldsToCreate.length === 0 && fieldsToSkip.length === 0) {
   return [{
     json: {

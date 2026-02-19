@@ -1,4 +1,3 @@
-// Process sequences spec - create sequence × mailbox combinations
 const data = $input.first().json;
 const existingSequences = data.campaigns || data || [];
 const config = $('Check Sequences Spec').first().json;
@@ -6,7 +5,6 @@ const sequenceIds = config.sequence_template_ids || [];
 const mailboxes = config.mailboxes || [];
 const forceOverwrite = config.force_overwrite;
 
-// Build map of existing sequences by name
 const existingByName = {};
 if (Array.isArray(existingSequences)) {
   existingSequences.forEach(seq => {
@@ -16,7 +14,6 @@ if (Array.isArray(existingSequences)) {
   });
 }
 
-// Create cross-product: one clone per sequence × mailbox combination
 const sequencesToClone = [];
 const sequencesToSkip = [];
 

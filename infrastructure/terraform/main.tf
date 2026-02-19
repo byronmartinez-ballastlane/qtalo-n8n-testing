@@ -1,5 +1,3 @@
-# Qtalo n8n Multi-Tenant Infrastructure
-# Terraform configuration for Lambda + API Gateway
 
 terraform {
   required_version = ">= 1.0"

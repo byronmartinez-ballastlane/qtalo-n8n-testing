@@ -1,8 +1,6 @@
-// Process clone API result
 const prepData = $('Prepare Clone Payload').item.json;
 const apiResponse = $input.item.json;
 
-// Check for API errors
 if (apiResponse.error || !apiResponse.id) {
   return {
     json: {

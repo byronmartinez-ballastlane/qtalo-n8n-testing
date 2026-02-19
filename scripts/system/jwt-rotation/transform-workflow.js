@@ -1,4 +1,3 @@
-// Transform workflow: update credential references and keep only allowed fields
 const batchData = $('Loop Over Workflows').first().json;
 const workflow = $input.first().json;
 
@@ -6,7 +5,6 @@ const oldCredId = batchData.old_credential_id;
 const newCredId = batchData.new_credential_id;
 const newCredName = batchData.new_credential_name;
 
-// Update credential references in nodes
 const updatedNodes = workflow.nodes.map(node => {
   if (!node.credentials) return node;
   
@@ -18,7 +16,6 @@ const updatedNodes = workflow.nodes.map(node => {
   return node;
 });
 
-// Keep only fields allowed by PUT API
 const updatePayload = {
   name: workflow.name,
   nodes: updatedNodes,

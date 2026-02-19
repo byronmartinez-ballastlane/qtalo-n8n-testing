@@ -1,9 +1,6 @@
-// ATOMIC DEDUPLICATION using staticData
-// This runs IMMEDIATELY to prevent race conditions
 const webhookData = $input.first().json;
 const body = webhookData.body || webhookData;
 
-// Extract task ID and status for dedup key
 const taskId = body.task_id || body.history_items?.[0]?.task?.id || body.payload?.id;
 const historyItems = body.history_items || [];
 const statusChange = historyItems.find(h => h.field === 'status');

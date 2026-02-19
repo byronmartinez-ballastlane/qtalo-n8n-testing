@@ -1,4 +1,3 @@
-// Pass through mailbox data without applying limits (limits endpoint removed)
 const items = $input.all();
 
 return items.map(item => ({

@@ -1,26 +1,19 @@
-// Parse Lambda webhook results and match to original items
-// Wait node receives Lambda GET request with query params
 const webhookData = $input.first().json;
 const triggerData = $('Prepare Lambda Request').first().json;
 const originalItems = triggerData._originalItems || [];
 
 console.log('Webhook data received:', JSON.stringify(webhookData, null, 2));
 
-// Wait node puts query parameters in webhookData.query
-// Lambda sends: ?status=completed&timestamp=...&result={"statusCode":200,"body":"{\"results\":[...]}"}
 let lambdaResults = [];
 
-// Check webhookData.query.result (GET query parameters)
 if (webhookData.query && webhookData.query.result) {
   try {
-    // First parse: query.result -> {statusCode, body}
     const lambdaResponse = typeof webhookData.query.result === 'string' 
       ? JSON.parse(webhookData.query.result) 
       : webhookData.query.result;
     
     console.log('Lambda response statusCode:', lambdaResponse.statusCode);
     
-    // Second parse: body -> {results: [...]}
     const bodyData = typeof lambdaResponse.body === 'string'
       ? JSON.parse(lambdaResponse.body)
       : lambdaResponse.body;
@@ -39,7 +32,6 @@ if (webhookData.query && webhookData.query.result) {
   }
 }
 
-// Match Lambda results to original items by email
 const results = originalItems.map(item => {
   const lambdaResult = lambdaResults.find(r => r.email === item.email) || {};
   

@@ -1,4 +1,3 @@
-// Aggregate all update results
 const results = $input.all().map(i => i.json);
 
 const updated = results.filter(r => r.status === 'updated').length;

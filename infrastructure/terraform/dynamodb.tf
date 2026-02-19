@@ -1,4 +1,3 @@
-# DynamoDB table for client configuration and metadata
 resource "aws_dynamodb_table" "clients" {
   name         = "${var.project_name}-clients-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
@@ -9,7 +8,6 @@ resource "aws_dynamodb_table" "clients" {
     type = "S"
   }
 
-  # Optional: Add status as a GSI for querying by status
   attribute {
     name = "status"
     type = "S"
@@ -21,12 +19,10 @@ resource "aws_dynamodb_table" "clients" {
     projection_type = "ALL"
   }
 
-  # Enable point-in-time recovery for data protection
   point_in_time_recovery {
     enabled = true
   }
 
-  # Enable server-side encryption
   server_side_encryption {
     enabled = true
   }
@@ -38,7 +34,6 @@ resource "aws_dynamodb_table" "clients" {
   }
 }
 
-# Output the table name and ARN
 output "dynamodb_table_name" {
   description = "Name of the DynamoDB clients table"
   value       = aws_dynamodb_table.clients.name

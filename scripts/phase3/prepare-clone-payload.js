@@ -1,13 +1,10 @@
-// Prepare clone payload - check for errors/skip conditions first
 const campaignData = $input.item.json;
 const originalData = $('Split Sequences to Clone').item.json;
 const existingSequences = originalData.existing_sequences || {};
 
-// Get mailbox info from the split data
 const mailboxId = originalData.mailbox_id;
 const mailboxEmail = originalData.mailbox_email;
 
-// Check if we got errors fetching source sequence
 if (campaignData.error || !campaignData.id) {
   return {
     json: {
@@ -24,11 +21,9 @@ if (campaignData.error || !campaignData.id) {
 }
 
 const sourceName = campaignData.name || 'Unnamed Sequence';
-// Name clone with mailbox email for uniqueness
 const clonedName = `Clone - ${mailboxEmail}`;
 const forceOverwrite = originalData.force_overwrite;
 
-// Check if sequence already exists
 const existing = existingSequences[clonedName.toLowerCase()];
 if (existing && !forceOverwrite) {
   return {
@@ -45,10 +40,8 @@ if (existing && !forceOverwrite) {
   };
 }
 
-// Get steps from v2 API response
 const steps = campaignData.steps || [];
 
-// Prepare campaign creation payload - assign to mailbox email
 return {
   json: {
     source_sequence_id: originalData.source_sequence_id,

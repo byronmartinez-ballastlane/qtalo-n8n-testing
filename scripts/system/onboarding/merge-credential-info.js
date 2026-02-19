@@ -1,4 +1,3 @@
-// Merge credential info with client info
 const clientInfo = $('Extract Client Info').first().json;
 const clickupCred = $('Create ClickUp Credential').first().json;
 const replyCred = $('Create Reply Credential').first().json;

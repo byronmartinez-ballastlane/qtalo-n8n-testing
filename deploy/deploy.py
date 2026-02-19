@@ -290,8 +290,6 @@ class N8nDeployer:
     
     def _clean_workflow_json(self, workflow_json: Dict) -> Dict:
         """Remove metadata fields that shouldn't be sent in create/update"""
-        # Only keep fields that the n8n Cloud API accepts for PUT /workflows/{id}
-        # NOTE: versionId must NOT be included — it causes 400 "additional properties"
         allowed_fields = ['name', 'nodes', 'connections', 'settings']
         return {k: v for k, v in workflow_json.items() if k in allowed_fields}
     
@@ -299,10 +297,8 @@ class N8nDeployer:
         """Deploy a workflow (create or update by name)"""
         name = workflow_json.get('name', 'Unknown')
         
-        # Clean the workflow JSON
         workflow_json = self._clean_workflow_json(workflow_json)
         
-        # Check if workflow exists
         existing = self.get_workflow_by_name(name)
         
         if existing:

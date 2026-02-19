@@ -1,4 +1,3 @@
-// Prepare data for the Orchestrator workflow
 const statusData = $('Check Status Progression').first().json;
 
 return [{

@@ -1,20 +1,3 @@
-/**
- * JWT Secret Rotation Lambda
- *
- * This Lambda rotates the JWT signing secret every 6 hours via EventBridge.
- * It generates a new 32-byte secret and calls the n8n JWT rotation webhook.
- *
- * The n8n webhook (System - JWT Credential Rotation) handles:
- * 1. Creating a new credential with the new token
- * 2. Updating all workflows using the old credential
- * 3. Deleting the old credential
- *
- * The rotation follows AWS Secrets Manager rotation pattern:
- * 1. createSecret - Generate and store new secret as AWSPENDING
- * 2. setSecret - Call n8n webhook to rotate credential
- * 3. testSecret - Verify rotation completed
- * 4. finishSecret - Promote AWSPENDING to AWSCURRENT
- */
 
 const {
   SecretsManagerClient,
@@ -32,21 +15,14 @@ const crypto = require("crypto");
 const secretsClient = new SecretsManagerClient({});
 const lambdaClient = new LambdaClient({});
 
-// n8n API configuration from environment
 const N8N_API_URL = process.env.N8N_API_URL;
 const N8N_API_KEY = process.env.N8N_API_KEY;
 const N8N_CREDENTIAL_NAME = process.env.N8N_CREDENTIAL_NAME || "JWT API Token";
 
-/**
- * Generate a cryptographically secure 32-byte secret
- */
 function generateSecret() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-/**
- * Get the current secret value
- */
 async function getSecretValue(secretId, versionStage = "AWSCURRENT") {
   try {
     const command = new GetSecretValueCommand({
@@ -63,9 +39,6 @@ async function getSecretValue(secretId, versionStage = "AWSCURRENT") {
   }
 }
 
-/**
- * Store a new secret version as AWSPENDING
- */
 async function createPendingSecret(secretId, clientRequestToken, secretValue) {
   console.log(`Creating pending secret version: ${clientRequestToken}`);
 
@@ -80,11 +53,6 @@ async function createPendingSecret(secretId, clientRequestToken, secretValue) {
   console.log("Pending secret created successfully");
 }
 
-/**
- * Push the secret to n8n via JWT rotation webhook
- * The webhook creates a new credential, updates all workflows, and deletes the old one
- * Returns the new credential ID for storage
- */
 async function pushToN8n(secret) {
   if (!N8N_API_URL) {
     console.log(
@@ -96,7 +64,6 @@ async function pushToN8n(secret) {
 
   console.log(`Calling n8n JWT rotation webhook for credential: ${N8N_CREDENTIAL_NAME}`);
 
-  // Call the JWT rotation webhook
   const url = `${N8N_API_URL}/webhook/rotate-jwt-credential`;
 
   try {
@@ -136,10 +103,6 @@ async function pushToN8n(secret) {
   }
 }
 
-/**
- * Test that n8n can use the new secret
- * Since rotation webhook handles everything, we just verify the webhook is accessible
- */
 async function testN8nSecret() {
   if (!N8N_API_URL) {
     console.log("n8n configuration not set, skipping test");
@@ -150,10 +113,6 @@ async function testN8nSecret() {
   return true;
 }
 
-/**
- * Invalidate the JWT authorizer Lambda's in-memory cache by updating its
- * environment, which forces AWS Lambda to create new execution environments.
- */
 async function invalidateAuthorizerCache() {
   const authorizerFunctionName = process.env.AUTHORIZER_FUNCTION_NAME;
   if (!authorizerFunctionName) {
@@ -169,7 +128,6 @@ async function invalidateAuthorizerCache() {
       Environment: {
         Variables: {
           JWT_SECRET_NAME: process.env.JWT_SECRET_NAME,
-          // Timestamp forces a new environment, clearing in-memory caches
           LAST_ROTATION: new Date().toISOString(),
         },
       },
@@ -182,19 +140,14 @@ async function invalidateAuthorizerCache() {
   }
 }
 
-/**
- * Promote AWSPENDING to AWSCURRENT
- */
 async function finishRotation(secretId, clientRequestToken) {
   console.log("Finishing rotation - promoting AWSPENDING to AWSCURRENT");
 
-  // Get the current version
   const describeCommand = new DescribeSecretCommand({
     SecretId: secretId,
   });
   const secretMetadata = await secretsClient.send(describeCommand);
 
-  // Find the current version ID
   let currentVersionId = null;
   for (const [versionId, stages] of Object.entries(
     secretMetadata.VersionIdsToStages || {}
@@ -205,7 +158,6 @@ async function finishRotation(secretId, clientRequestToken) {
     }
   }
 
-  // Move AWSCURRENT to the old version (if exists) and AWSPENDING to AWSCURRENT
   const updateCommand = new UpdateSecretVersionStageCommand({
     SecretId: secretId,
     VersionStage: "AWSCURRENT",
@@ -219,10 +171,6 @@ async function finishRotation(secretId, clientRequestToken) {
   );
 }
 
-/**
- * Main rotation handler for Secrets Manager rotation
- * Called by AWS Secrets Manager with rotation steps
- */
 async function handleSecretsManagerRotation(event) {
   const secretId = event.SecretId;
   const clientRequestToken = event.ClientRequestToken;
@@ -232,14 +180,12 @@ async function handleSecretsManagerRotation(event) {
 
   switch (step) {
     case "createSecret": {
-      // Check if pending version already exists
       const pendingSecret = await getSecretValue(secretId, "AWSPENDING");
       if (pendingSecret) {
         console.log("Pending secret already exists, skipping creation");
         return;
       }
 
-      // Generate new secret
       const newSecret = {
         secret: generateSecret(),
         createdAt: new Date().toISOString(),
@@ -251,7 +197,6 @@ async function handleSecretsManagerRotation(event) {
     }
 
     case "setSecret": {
-      // Get the pending secret and push to n8n via webhook
       const pendingSecret = await getSecretValue(secretId, "AWSPENDING");
       if (!pendingSecret) {
         throw new Error("No pending secret found");
@@ -263,13 +208,11 @@ async function handleSecretsManagerRotation(event) {
     }
 
     case "testSecret": {
-      // Test that n8n can use the new secret
       await testN8nSecret();
       break;
     }
 
     case "finishSecret": {
-      // Promote AWSPENDING to AWSCURRENT
       await finishRotation(secretId, clientRequestToken);
       break;
     }
@@ -279,10 +222,6 @@ async function handleSecretsManagerRotation(event) {
   }
 }
 
-/**
- * EventBridge handler for scheduled rotation
- * Performs the full rotation in one go
- */
 async function handleScheduledRotation() {
   const secretId = process.env.JWT_SECRET_NAME;
 
@@ -292,7 +231,6 @@ async function handleScheduledRotation() {
 
   console.log(`Starting scheduled rotation for secret: ${secretId}`);
 
-  // Generate new secret
   const newSecret = {
     secret: generateSecret(),
     createdAt: new Date().toISOString(),
@@ -301,19 +239,14 @@ async function handleScheduledRotation() {
 
   const clientRequestToken = crypto.randomUUID();
 
-  // Step 1: Create pending secret
   await createPendingSecret(secretId, clientRequestToken, newSecret);
 
-  // Step 2: Push to n8n via webhook (creates new credential, updates workflows, deletes old)
   const rotationResult = await pushToN8n(newSecret.secret);
 
-  // Step 3: Test n8n
   await testN8nSecret();
 
-  // Step 4: Finish rotation
   await finishRotation(secretId, clientRequestToken);
 
-  // Step 5: Invalidate authorizer Lambda cache by forcing a cold start
   await invalidateAuthorizerCache();
 
   console.log("Scheduled rotation completed successfully");
@@ -330,18 +263,12 @@ async function handleScheduledRotation() {
   };
 }
 
-/**
- * Main Lambda handler
- * Supports both Secrets Manager rotation events and EventBridge scheduled events
- */
 exports.handler = async (event) => {
   console.log("Event received:", JSON.stringify(event, null, 2));
 
-  // Check if this is a Secrets Manager rotation event
   if (event.SecretId && event.ClientRequestToken && event.Step) {
     return handleSecretsManagerRotation(event);
   }
 
-  // Otherwise, treat as scheduled EventBridge event
   return handleScheduledRotation();
 };

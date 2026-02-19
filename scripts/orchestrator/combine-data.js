@@ -1,5 +1,3 @@
-// Combine CSV content with config
-// MULTI-DOMAIN: Extract all unique domains from CSV and reconcile with task domain
 const maybeDownloaded = $input.first().json;
 const config = $('Check CSV Exists').first().json;
 
@@ -11,9 +9,6 @@ if (config.skip_csv_download) {
   csvContent = maybeDownloaded;
 }
 
-// ============================================================
-// MULTI-DOMAIN: Extract unique domains from CSV emails
-// ============================================================
 let csvDomains = [];
 if (csvContent && csvContent.trim()) {
   const lines = csvContent.trim().split('\n');
@@ -35,12 +30,6 @@ if (csvContent && csvContent.trim()) {
   }
 }
 
-// ============================================================
-// DOMAIN RECONCILIATION LOGIC:
-// 1. If task has a domain AND it exists in CSV domains → use ALL CSV domains
-// 2. If task has a domain but NOT in CSV domains → warn but use ALL CSV domains
-// 3. If task has NO domain → use ALL CSV domains (skip domain security check downstream)
-// ============================================================
 const taskDomain = (config.expected_domains && config.expected_domains.length > 0)
   ? config.expected_domains[0]
   : null;
@@ -65,7 +54,6 @@ if (csvDomains.length > 0) {
     domainSource = 'csv_no_task_domain';
   }
 } else if (taskDomain) {
-  // No CSV or no emails in CSV — fall back to task domain
   finalExpectedDomains = [taskDomain];
   domainSource = 'task_only';
   console.log(`ℹ️ No CSV domains available. Using task domain: ${taskDomain}`);
@@ -78,7 +66,6 @@ const output = {
   ...config,
   mailbox_csv_content: csvContent,
   data: csvContent,
-  // Override expected_domains with the reconciled multi-domain list
   expected_domains: finalExpectedDomains,
   _domain_reconciliation: {
     task_domain: taskDomain,

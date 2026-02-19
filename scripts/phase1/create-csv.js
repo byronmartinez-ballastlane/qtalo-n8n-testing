@@ -1,4 +1,3 @@
-// Generate CSV report manually (csv-stringify not available)
 const items = $input.all();
 
 const records = items.map(item => ({
@@ -12,7 +11,6 @@ const records = items.map(item => ({
   Timestamp: item.json.timestamp
 }));
 
-// Create CSV manually
 const headers = ['Email', 'Status', 'Action', 'Display Name', 'Limits Applied', 'Limits Error', 'Error', 'Timestamp'];
 const csvLines = [headers.join(',')];
 records.forEach(r => {
@@ -31,7 +29,6 @@ records.forEach(r => {
 });
 const csv = csvLines.join('\n');
 
-// Generate summary statistics
 const total = items.length;
 const created = items.filter(i => i.json.action === 'created').length;
 const updated = items.filter(i => i.json.action === 'updated').length;

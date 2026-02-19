@@ -1,6 +1,3 @@
-# ============================================================
-# Outputs
-# ============================================================
 
 output "api_gateway_url" {
   description = "Base URL for the API Gateway"
@@ -27,7 +24,6 @@ output "lambda_role_arn" {
   value       = aws_iam_role.lambda_role.arn
 }
 
-# Endpoint URLs for n8n integration
 output "endpoints" {
   description = "API endpoints for n8n workflows"
   value = {
@@ -54,9 +50,6 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.lambda_deployments.arn
 }
 
-# ============================================================
-# Signature Automation Lambda Outputs
-# ============================================================
 
 output "signature_lambda_arn" {
   description = "ARN of the Reply.io Signature Automation Lambda"

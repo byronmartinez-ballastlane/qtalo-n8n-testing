@@ -1,4 +1,3 @@
-// Generate report with full signature text
 const items = $input.all();
 
 const results = items.map(item => {

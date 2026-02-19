@@ -1,6 +1,3 @@
-# ============================================================
-# API Gateway REST API
-# ============================================================
 
 resource "aws_api_gateway_rest_api" "api" {
   name        = "${var.project_name}-api-${var.environment}"
@@ -16,9 +13,6 @@ resource "aws_api_gateway_rest_api" "api" {
   }
 }
 
-# ============================================================
-# /health endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "health" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -42,9 +36,6 @@ resource "aws_api_gateway_integration" "health_get" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# ============================================================
-# /clients endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "clients" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -52,7 +43,6 @@ resource "aws_api_gateway_resource" "clients" {
   path_part   = "clients"
 }
 
-# GET /clients - List all clients
 resource "aws_api_gateway_method" "clients_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.clients.id
@@ -71,7 +61,6 @@ resource "aws_api_gateway_integration" "clients_get" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# POST /clients - Create new client
 resource "aws_api_gateway_method" "clients_post" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.clients.id
@@ -90,7 +79,6 @@ resource "aws_api_gateway_integration" "clients_post" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# OPTIONS /clients - CORS
 resource "aws_api_gateway_method" "clients_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.clients.id
@@ -135,9 +123,6 @@ resource "aws_api_gateway_integration_response" "clients_options" {
   }
 }
 
-# ============================================================
-# /clients/{clientId} endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "client_id" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -145,7 +130,6 @@ resource "aws_api_gateway_resource" "client_id" {
   path_part   = "{clientId}"
 }
 
-# GET /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.client_id.id
@@ -168,7 +152,6 @@ resource "aws_api_gateway_integration" "client_id_get" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# PUT /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_put" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.client_id.id
@@ -191,7 +174,6 @@ resource "aws_api_gateway_integration" "client_id_put" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# DELETE /clients/{clientId}
 resource "aws_api_gateway_method" "client_id_delete" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.client_id.id
@@ -214,9 +196,6 @@ resource "aws_api_gateway_integration" "client_id_delete" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# ============================================================
-# /clients/claim/{taskId} endpoint - Claim a task to prevent race conditions
-# ============================================================
 
 resource "aws_api_gateway_resource" "claim" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -230,7 +209,6 @@ resource "aws_api_gateway_resource" "claim_task_id" {
   path_part   = "{taskId}"
 }
 
-# PUT /clients/claim/{taskId}
 resource "aws_api_gateway_method" "claim_put" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.claim_task_id.id
@@ -253,7 +231,6 @@ resource "aws_api_gateway_integration" "claim_put" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# OPTIONS /clients/claim/{taskId} - CORS
 resource "aws_api_gateway_method" "claim_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.claim_task_id.id
@@ -298,9 +275,6 @@ resource "aws_api_gateway_integration_response" "claim_options" {
   }
 }
 
-# ============================================================
-# /clients/by-task/{taskId} endpoint - Lookup by ClickUp task
-# ============================================================
 
 resource "aws_api_gateway_resource" "by_task" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -314,7 +288,6 @@ resource "aws_api_gateway_resource" "by_task_id" {
   path_part   = "{taskId}"
 }
 
-# GET /clients/by-task/{taskId}
 resource "aws_api_gateway_method" "by_task_get" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.by_task_id.id
@@ -337,7 +310,6 @@ resource "aws_api_gateway_integration" "by_task_get" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# OPTIONS /clients/by-task/{taskId} - CORS
 resource "aws_api_gateway_method" "by_task_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.by_task_id.id
@@ -382,9 +354,6 @@ resource "aws_api_gateway_integration_response" "by_task_options" {
   }
 }
 
-# ============================================================
-# /credentials/{clientId} endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "credentials" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -420,7 +389,6 @@ resource "aws_api_gateway_integration" "credentials_get" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# PUT /credentials/{clientId} - Update credentials
 resource "aws_api_gateway_method" "credentials_put" {
   rest_api_id      = aws_api_gateway_rest_api.api.id
   resource_id      = aws_api_gateway_resource.credentials_client_id.id
@@ -443,7 +411,6 @@ resource "aws_api_gateway_integration" "credentials_put" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# OPTIONS /credentials/{clientId} - CORS
 resource "aws_api_gateway_method" "credentials_options" {
   rest_api_id   = aws_api_gateway_rest_api.api.id
   resource_id   = aws_api_gateway_resource.credentials_client_id.id
@@ -488,9 +455,6 @@ resource "aws_api_gateway_integration_response" "credentials_options" {
   }
 }
 
-# ============================================================
-# /workflows endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "workflows" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -516,9 +480,6 @@ resource "aws_api_gateway_integration" "workflows_put" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# ============================================================
-# /sync endpoint
-# ============================================================
 
 resource "aws_api_gateway_resource" "sync" {
   rest_api_id = aws_api_gateway_rest_api.api.id
@@ -544,9 +505,6 @@ resource "aws_api_gateway_integration" "sync_post" {
   uri                     = aws_lambda_function.client_manager.invoke_arn
 }
 
-# ============================================================
-# Lambda Permission for API Gateway
-# ============================================================
 
 resource "aws_lambda_permission" "api_gateway" {
   statement_id  = "AllowAPIGatewayInvoke"
@@ -556,14 +514,10 @@ resource "aws_lambda_permission" "api_gateway" {
   source_arn    = "${aws_api_gateway_rest_api.api.execution_arn}/*/*"
 }
 
-# ============================================================
-# API Gateway Deployment
-# ============================================================
 
 resource "aws_api_gateway_deployment" "api" {
   rest_api_id = aws_api_gateway_rest_api.api.id
 
-  # Explicit dependencies on all integrations
   depends_on = [
     aws_api_gateway_integration.health_get,
     aws_api_gateway_integration.clients_get,
@@ -609,7 +563,6 @@ resource "aws_api_gateway_deployment" "api" {
       aws_api_gateway_method.sync_post.id,
       aws_api_gateway_method.claim_put.id,
       aws_api_gateway_method.claim_options.id,
-      # JWT Authentication resources
       aws_api_gateway_authorizer.jwt_authorizer.id,
       aws_api_gateway_api_key.n8n_api_key.id,
     ]))

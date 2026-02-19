@@ -1,6 +1,3 @@
-# ============================================================
-# IAM Role for Lambda
-# ============================================================
 
 resource "aws_iam_role" "lambda_role" {
   name = "${var.project_name}-lambda-role-${var.environment}"
@@ -70,11 +67,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
   })
 }
 
-# ============================================================
-# S3 Bucket for Lambda Deployment
-# ============================================================
 
-# Get current AWS account ID for unique bucket naming
 data "aws_caller_identity" "current" {}
 
 resource "aws_s3_bucket" "lambda_deployments" {
@@ -113,9 +106,6 @@ resource "aws_s3_bucket_public_access_block" "lambda_deployments" {
   restrict_public_buckets = true
 }
 
-# ============================================================
-# Lambda Function
-# ============================================================
 
 data "archive_file" "lambda_zip" {
   type        = "zip"
@@ -171,11 +161,7 @@ resource "aws_cloudwatch_log_group" "lambda_logs" {
   }
 }
 
-# ============================================================
-# Reply.io Signature Automation Lambda
-# ============================================================
 
-# IAM Role for Signature Lambda (Puppeteer-based)
 resource "aws_iam_role" "signature_lambda_role" {
   name = "replyio-signature-automation-role"
 
@@ -234,9 +220,6 @@ resource "aws_iam_role_policy" "signature_lambda_policy" {
   })
 }
 
-# ============================================================
-# Signature Lambda Deployment Package
-# ============================================================
 
 data "archive_file" "signature_lambda_zip" {
   type        = "zip"
@@ -257,9 +240,6 @@ resource "aws_s3_object" "signature_lambda_package" {
   }
 }
 
-# ============================================================
-# Signature Lambda Function
-# ============================================================
 
 resource "aws_lambda_function" "signature_automation" {
   function_name = "replyio-signature-automation"
@@ -273,7 +253,6 @@ resource "aws_lambda_function" "signature_automation" {
   s3_key           = aws_s3_object.signature_lambda_package.key
   source_code_hash = data.archive_file.signature_lambda_zip.output_base64sha256
 
-  # Ephemeral storage for Puppeteer/Chromium
   ephemeral_storage {
     size = 2048
   }
@@ -307,7 +286,6 @@ resource "aws_cloudwatch_log_group" "signature_lambda_logs" {
   }
 }
 
-# Lambda Function URL for direct invocation from n8n
 resource "aws_lambda_function_url" "signature_automation" {
   function_name      = aws_lambda_function.signature_automation.function_name
   authorization_type = "NONE"

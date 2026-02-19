@@ -1,4 +1,3 @@
-// Split sequence×mailbox combinations into individual items
 const data = $input.first().json;
 const sequencesToClone = data.sequences_to_clone || [];
 

@@ -1,17 +1,11 @@
-// Check if mailbox already exists and should skip or update
-// Also detect 401/403 auth errors from Reply.io API
 const parseItems = $('Parse CSV').all();
 const checkMailboxItems = $('Check Mailbox Exists').all();
 const startData = $('Start').first().json;
 const config = startData.inputData ? JSON.parse(startData.inputData) : startData;
 const taskId = config.task_id;
 
-// Get existing accounts - n8n splits array responses into individual items
 const existingAccounts = checkMailboxItems.map(item => item.json);
 
-// ============================================================
-// CHECK FOR REPLY.IO AUTH ERRORS (401/403)
-// ============================================================
 const firstResponse = existingAccounts[0] || {};
 if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.statusCode === 403 || 
     firstResponse.message?.includes('Unauthorized') || firstResponse.message?.includes('Forbidden')) {
@@ -21,7 +15,6 @@ if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.sta
   
   console.error(`❌ Reply.io Auth Error (${statusCode}): ${errorMsg}`);
   
-  // Try to post error comment to ClickUp
   if (taskId && taskId !== 'unknown') {
     try {
       await this.helpers.request({
@@ -44,17 +37,14 @@ if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.sta
   
   throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);
 }
-// ============================================================
 
 console.log(`Found ${existingAccounts.length} existing email accounts in Reply.io`);
 
-// Process each mailbox from Parse CSV
 const results = parseItems.map((item, index) => {
   const currentEmail = item.json.email;
   const desiredDisplayName = item.json.displayName;
   const forceOverwrite = item.json.forceOverwrite;
   
-  // Find existing mailbox data
   const existingMailbox = existingAccounts.find(acc => 
     acc.emailAddress && acc.emailAddress.toLowerCase() === currentEmail.toLowerCase()
   );
@@ -63,10 +53,8 @@ const results = parseItems.map((item, index) => {
   const currentSenderName = existingMailbox ? existingMailbox.senderName : '';
   const senderNameDiffers = currentSenderName !== desiredDisplayName;
   
-  // Should update if: exists AND (forceOverwrite OR senderName differs)
   const shouldUpdate = emailExists && (forceOverwrite || senderNameDiffers);
   
-  // Should skip if: exists AND NOT updating
   const shouldSkip = emailExists && !shouldUpdate;
   
   console.log(`Email ${currentEmail}: exists=${emailExists}, current="${currentSenderName}", desired="${desiredDisplayName}", differs=${senderNameDiffers}, forceOverwrite=${forceOverwrite}, shouldUpdate=${shouldUpdate}, shouldSkip=${shouldSkip}`);

@@ -1,4 +1,3 @@
-// Generate report for each mailbox operation
 const items = $input.all();
 
 const results = items.map(item => {
@@ -6,9 +5,8 @@ const results = items.map(item => {
   
   let status, action, error;
   
-  // Check if action was already set by update/create/skip nodes
   if (data.action) {
-    action = data.action; // 'created', 'updated', 'skipped'
+    action = data.action;
     status = (action === 'skipped') ? 'skipped' : 'success';
     error = (action === 'skipped') ? 'Already exists, no changes needed' : '';
   } else if (data.error) {
@@ -28,7 +26,6 @@ const results = items.map(item => {
     error = data.api_response?.error?.message || 'Unexpected response';
   }
   
-  // Hide limits error if it's just endpoint not available
   const limitsError = data.limits_error === 'Endpoint not available' ? '' : (data.limits_error || '');
   
   return {

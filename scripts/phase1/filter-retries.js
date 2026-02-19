@@ -1,8 +1,6 @@
-// Filter out failed items that now exist
 const failedItems = $('Detect Failed Creations', 1).all();
-const existingMailboxes = $input.all(); // Each item is one mailbox
+const existingMailboxes = $input.all();
 
-// Extract existing email addresses
 const existingEmails = existingMailboxes
   .map(item => item.json.emailAddress?.toLowerCase())
   .filter(Boolean);
@@ -10,7 +8,6 @@ const existingEmails = existingMailboxes
 console.log(`Re-check: Found ${existingEmails.length} existing mailboxes`);
 console.log(`Existing emails: ${existingEmails.slice(0, 5).join(', ')}...`);
 
-// Filter out items that now exist
 const itemsToRetry = failedItems.filter(item => {
   const email = item.json.email?.toLowerCase();
   const alreadyExists = existingEmails.includes(email);

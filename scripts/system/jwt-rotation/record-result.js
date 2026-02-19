@@ -1,4 +1,3 @@
-// Record update result and pass back to loop
 const transformData = $('Transform Workflow').first().json;
 const putResult = $input.first().json;
 

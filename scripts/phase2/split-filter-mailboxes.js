@@ -1,19 +1,11 @@
-// Split mailboxes array into individual items
-// PRIORITY: Use API response (has IDs) and merge with Phase 1 config if available
-// CRITICAL: Filter by expected_domains to prevent cross-client data contamination!
 const startData = $('Start').first().json;
 
-// Check if data was passed via workflow fields
 const executionData = startData.inputData ? JSON.parse(startData.inputData) : startData;
 const taskId = executionData.task_id;
 
-// Use $input.all() to get ALL items from previous node
 const allItems = $input.all();
 console.log(`Received ${allItems.length} items from previous node`);
 
-// ============================================================
-// CHECK FOR REPLY.IO AUTH ERRORS (401/403)
-// ============================================================
 const firstResponse = allItems[0]?.json || {};
 if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.statusCode === 403 || 
     firstResponse.message?.includes('Unauthorized') || firstResponse.message?.includes('Forbidden')) {
@@ -23,7 +15,6 @@ if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.sta
   
   console.error(`❌ Reply.io Auth Error (${statusCode}): ${errorMsg}`);
   
-  // Try to post error comment to ClickUp
   if (taskId && taskId !== 'unknown') {
     try {
       await this.helpers.request({
@@ -46,12 +37,8 @@ if (firstResponse.error || firstResponse.statusCode === 401 || firstResponse.sta
   
   throw new Error(`Reply.io API authentication failed (${statusCode}): ${errorMsg}. Please update credentials.`);
 }
-// ============================================================
 
-// Get config from Start node input (passed from orchestrator) or use defaults
-// Note: $env vars removed for n8n Cloud compatibility
 const config = {
-  // CLIENT ID: Required for multi-tenant AWS API access
   client_id: executionData.client_id || executionData.config?.client_id || null,
   signature_template_plain: executionData.signature_template_plain || executionData.config?.signature_template_plain || '{{first_name}}',
   opt_out_variants: executionData.opt_out_variants || executionData.config?.opt_out_variants || [
@@ -64,25 +51,17 @@ const config = {
   company_phone: executionData.company_phone || executionData.config?.company_phone || '',
   force_overwrite: executionData.force_overwrite !== undefined ? executionData.force_overwrite : (executionData.config?.force_overwrite !== undefined ? executionData.config.force_overwrite : false),
   task_id: taskId,
-  // CRITICAL: Expected domains for multi-tenancy isolation
   expected_domains: executionData.expected_domains || executionData.config?.expected_domains || [],
-  // WORKSPACE SWITCHING: Reply.io workspace name for the Lambda to switch to
   reply_workspace_id: executionData.reply_workspace_id || executionData.config?.reply_workspace_id || null
 };
 
 console.log(`🏢 Reply.io workspace: ${config.reply_workspace_id || 'DEFAULT (not set)'}`);
 
-// Handle different response structures:
-// API response returns array of mailbox objects, each item has the structure
 let mailboxes = allItems.map(item => item.json);
 let source = 'api';
 
 console.log(`Processing ${mailboxes.length} mailboxes from API response`);
 
-// ============================================================
-// MULTI-TENANCY DOMAIN FILTERING
-// Now supports multiple domains (derived from CSV in combine-data.js)
-// ============================================================
 const expectedDomains = config.expected_domains;
 let filteredMailboxes = mailboxes;
 let rejectedMailboxes = [];
@@ -109,7 +88,6 @@ if (expectedDomains && expectedDomains.length > 0) {
   
   console.log(`🔒 Domain filter results: ${filteredMailboxes.length} approved, ${rejectedMailboxes.length} rejected out of ${mailboxes.length} total`);
   
-  // SECURITY: Block execution if ALL mailboxes were rejected
   if (filteredMailboxes.length === 0 && mailboxes.length > 0) {
     const errorMsg = `🚨 SECURITY BLOCK: All ${mailboxes.length} mailboxes rejected by domain filter. Expected domains: ${normalizedDomains.join(', ')}. This may indicate misconfiguration or an attempt to process unauthorized mailboxes.`;
     console.error(errorMsg);
@@ -118,17 +96,14 @@ if (expectedDomains && expectedDomains.length > 0) {
 } else {
   console.log('ℹ️ No expected_domains configured — processing ALL mailboxes (domains will be derived from mailbox list).');
 }
-// ============================================================
 
 if (filteredMailboxes.length === 0) {
   return [{ json: { error: 'No mailboxes found to process after domain filtering', config, source, rejected_count: rejectedMailboxes.length } }];
 }
 
-// Merge with Phase 1 results for displayName if available
 const phase1Results = executionData.phase1_results || [];
 
 return filteredMailboxes.map(mailbox => {
-  // Find matching Phase 1 result by email
   const phase1Match = phase1Results.find(p => 
     p.email && mailbox.emailAddress && p.email.toLowerCase() === mailbox.emailAddress.toLowerCase()
   );
@@ -136,7 +111,6 @@ return filteredMailboxes.map(mailbox => {
   return {
     json: {
       ...mailbox,
-      // Use Phase 1 displayName if available, otherwise use senderName from API
       displayName: phase1Match?.displayName || mailbox.senderName,
       config,
       _source: source,

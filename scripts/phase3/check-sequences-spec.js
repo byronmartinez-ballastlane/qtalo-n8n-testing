@@ -1,10 +1,8 @@
-// Check if sequences spec exists and mailboxes are available
 const config = $('Start').first().json;
 const sequenceIds = config.sequence_template_ids || [];
 const mailboxes = config.mailboxes || [];
 
 if (!Array.isArray(sequenceIds) || sequenceIds.length === 0) {
-  // No sequences to process - return empty to skip this branch
   console.log('No sequence_template_ids provided - skipping sequence cloning');
   return [];
 }

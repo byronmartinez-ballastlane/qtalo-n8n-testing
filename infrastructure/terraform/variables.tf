@@ -1,6 +1,3 @@
-# ============================================================
-# Core AWS Configuration
-# ============================================================
 
 variable "aws_region" {
   description = "AWS region"
@@ -26,9 +23,6 @@ variable "project_name" {
   default     = "qtalo-n8n"
 }
 
-# ============================================================
-# Lambda Layer Configuration
-# ============================================================
 
 variable "chrome_lambda_layer_arn" {
   description = "ARN of the chrome-aws-lambda layer for Puppeteer support"
@@ -36,9 +30,6 @@ variable "chrome_lambda_layer_arn" {
   default     = "arn:aws:lambda:us-east-1:764866452798:layer:chrome-aws-lambda:45"
 }
 
-# ============================================================
-# DynamoDB Configuration
-# ============================================================
 
 variable "dynamodb_table_name" {
   description = "DynamoDB table name for client configs"
@@ -46,9 +37,6 @@ variable "dynamodb_table_name" {
   default     = "qtalo-n8n-clients"
 }
 
-# ============================================================
-# n8n API Configuration
-# ============================================================
 
 variable "n8n_api_url" {
   description = "n8n API base URL (without /api/v1)"
@@ -62,9 +50,6 @@ variable "n8n_jwt_credential_name" {
   default     = "AWS API Gateway JWT"
 }
 
-# ============================================================
-# Import Mode Configuration
-# ============================================================
 
 variable "import_mode" {
   description = "Set to true when importing existing infrastructure"
@@ -72,9 +57,6 @@ variable "import_mode" {
   default     = false
 }
 
-# ============================================================
-# GitHub Configuration
-# ============================================================
 
 variable "github_pat" {
   description = "GitHub Personal Access Token (for creating repo secrets)"

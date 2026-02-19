@@ -1,20 +1,3 @@
-/**
- * Reply.io Signature Automation Lambda
- * 
- * This Lambda automates updating email signatures in Reply.io UI.
- * 
- * Data Sources:
- * - AWS Secrets Manager: Sensitive credentials (reply_io_user, reply_io_password, API keys)
- * - DynamoDB: Configuration data (expected_domains, client_name, status)
- * 
- * LEGACY: Also supports direct replyioEmail/replyioPassword for backward compatibility
- * 
- * Based on the original replyio-signature-automation Lambda with:
- * - AWS Secrets Manager integration for secure credential retrieval
- * - DynamoDB integration for client configuration (expected_domains)
- * - client_id parameter to identify which client's data to use
- * - Backward compatibility with direct credential passing
- */
 
 const chromium = require('@sparticuz/chromium');
 const puppeteer = require('puppeteer-core');
@@ -23,12 +6,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-/**
- * Get the Chromium executable path
- * First checks for local bin/ directory (bundled chromium), then falls back to Lambda layer
- */
 async function getChromiumExecutablePath() {
-  // Check for local chromium binary first (bundled in deployment)
   const localChromiumPath = path.join(__dirname, 'node_modules', '@sparticuz', 'chromium', 'bin');
   
   if (fs.existsSync(localChromiumPath)) {
@@ -36,11 +14,9 @@ async function getChromiumExecutablePath() {
     return await chromium.executablePath();
   }
   
-  // Fall back to Lambda layer
   const layerPath = '/opt/nodejs/node_modules/@sparticuz/chromium/bin';
   if (fs.existsSync(layerPath)) {
     console.log('📦 Using Chromium from Lambda layer');
-    // Point chromium to the layer path
     process.env.CHROMIUM_PATH = '/opt/nodejs/node_modules/@sparticuz/chromium';
   }
   
@@ -58,7 +34,6 @@ const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Fetch client config (expected_domains, reply_workspace_id) from DynamoDB
 async function getClientConfig(clientId) {
   try {
     console.log(`Fetching client config from DynamoDB: ${clientId}`);
@@ -97,7 +72,6 @@ async function getClientConfig(clientId) {
   }
 }
 
-// Fetch client credentials from AWS Secrets Manager (sensitive data only)
 async function getClientCredentials(clientId) {
   const secretName = `n8n/clients/${clientId}`;
   
@@ -120,11 +94,8 @@ async function getClientCredentials(clientId) {
   }
 }
 
-// MULTI-TENANCY: Validate that all account emails belong to expected domains
 function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
   if (!expectedDomains || expectedDomains.length === 0) {
-    // No expected_domains configured — allow all accounts through
-    // This happens when domains are derived from the CSV itself and no task domain was set
     console.log('ℹ️ No expected_domains configured. Allowing all accounts (domains derived from CSV).');
     return { 
       valid: true, 
@@ -170,7 +141,6 @@ function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
     rejectedAccounts.forEach(a => console.log(`      - ${a.email}: ${a.rejectionReason}`));
   }
   
-  // If ALL accounts are rejected, this is likely a misconfiguration - fail the request
   if (validAccounts.length === 0 && accounts.length > 0) {
     const errorMsg = `SECURITY BLOCK: All ${accounts.length} accounts were rejected by domain validation. ` +
       `Expected domains: [${normalizedDomains.join(', ')}]. ` +
@@ -196,10 +166,6 @@ function validateAccountDomains(accounts, expectedDomains, dryRun = false) {
   };
 }
 
-// ============================================================
-// SYNC EXPECTED DOMAINS: Merge processed domains into DynamoDB
-// Called at the end of execution to keep DynamoDB in sync
-// ============================================================
 async function syncExpectedDomains(clientId, processedDomains) {
   if (!clientId || !processedDomains || processedDomains.length === 0) {
     console.log('ℹ️ syncExpectedDomains: Nothing to sync (no client_id or domains)');
@@ -207,7 +173,6 @@ async function syncExpectedDomains(clientId, processedDomains) {
   }
 
   try {
-    // Fetch current record
     const result = await docClient.send(new GetCommand({
       TableName: TABLE_NAME,
       Key: { client_id: clientId }
@@ -221,18 +186,15 @@ async function syncExpectedDomains(clientId, processedDomains) {
     const currentDomains = (result.Item.expected_domains || []).map(d => d.toLowerCase().trim());
     const newDomains = processedDomains.map(d => d.toLowerCase().trim());
 
-    // Merge: union of current + new, deduplicated and sorted
     const mergedSet = new Set([...currentDomains, ...newDomains]);
     const mergedDomains = [...mergedSet].sort();
 
-    // Check if update is needed
     const currentSorted = [...currentDomains].sort();
     if (JSON.stringify(currentSorted) === JSON.stringify(mergedDomains)) {
       console.log(`✅ syncExpectedDomains: DynamoDB already has all ${mergedDomains.length} domain(s): ${mergedDomains.join(', ')}`);
       return { synced: false, reason: 'already in sync', domains: mergedDomains };
     }
 
-    // Update DynamoDB
     console.log(`🔄 syncExpectedDomains: Updating DynamoDB for client ${clientId}`);
     console.log(`   Before: [${currentSorted.join(', ')}] (${currentSorted.length})`);
     console.log(`   After:  [${mergedDomains.join(', ')}] (${mergedDomains.length})`);
@@ -250,15 +212,11 @@ async function syncExpectedDomains(clientId, processedDomains) {
     console.log(`✅ syncExpectedDomains: DynamoDB updated with ${mergedDomains.length} domain(s)`);
     return { synced: true, domains: mergedDomains, added: mergedDomains.filter(d => !currentDomains.includes(d)) };
   } catch (error) {
-    // Non-fatal: log but don't fail the Lambda
     console.error(`⚠️ syncExpectedDomains: Failed to sync domains to DynamoDB:`, error.message);
     return { synced: false, reason: 'error', error: error.message };
   }
 }
 
-// ============================================================
-// WORKSPACE SWITCHING: Switch to client's Reply.io workspace
-// ============================================================
 async function switchToWorkspace(page, workspaceName) {
   if (!workspaceName) {
     console.log('⚠️ No workspace name provided, skipping workspace switch');
@@ -268,13 +226,10 @@ async function switchToWorkspace(page, workspaceName) {
   console.log(`🏢 Switching to workspace: "${workspaceName}"`);
   
   try {
-    // Wait for page to be ready
     await wait(2000);
     
-    // Step 1: Find and click the workspace trigger button to open the dropdown
     let workspaceButton = null;
     
-    // Primary method: Find avatar with aria-label containing "Client:"
     workspaceButton = await page.$('[data-test-id="avatar"][aria-label^="Client:"]');
     
     if (!workspaceButton) {
@@ -282,7 +237,6 @@ async function switchToWorkspace(page, workspaceName) {
     }
     
     if (!workspaceButton) {
-      // Look for any avatar that might be the workspace selector
       const avatars = await page.$$('[data-test-id="avatar"]');
       for (const avatar of avatars) {
         const ariaLabel = await avatar.evaluate(el => el.getAttribute('aria-label'));
@@ -306,34 +260,21 @@ async function switchToWorkspace(page, workspaceName) {
     await workspaceButton.click();
     await wait(1500);
     
-    // Step 2: Extract the workspace list and find the exact match by aria-label
-    // The HTML structure is:
-    // <a href="/Home/SwitchTeam?teamId=XXXXX">
-    //   <li>
-    //     <p aria-label="WorkspaceName">WorkspaceName</p>
-    //   </li>
-    // </a>
     
-    // First, extract all workspace data from the page
     const extractedWorkspaces = await page.evaluate(() => {
-      // Find all workspace links
       const switchLinks = Array.from(document.querySelectorAll('a[href*="SwitchTeam?teamId="]'));
       
-      // Deduplicate by teamId
       const seenTeamIds = new Set();
       const workspaces = [];
       
       for (const link of switchLinks) {
-        // Extract teamId from href
         const href = link.getAttribute('href') || '';
         const teamIdMatch = href.match(/teamId=(\d+)/);
         const teamId = teamIdMatch ? teamIdMatch[1] : null;
         
-        // Skip if we've already seen this teamId
         if (teamId && seenTeamIds.has(teamId)) continue;
         if (teamId) seenTeamIds.add(teamId);
         
-        // Get workspace name from the <p> element with aria-label inside the link
         const pElement = link.querySelector('p[aria-label]');
         const ariaLabel = pElement?.getAttribute('aria-label') || '';
         const textContent = pElement?.textContent?.trim() || link.textContent?.trim() || '';
@@ -349,20 +290,16 @@ async function switchToWorkspace(page, workspaceName) {
       return workspaces;
     });
     
-    // Log the extracted workspaces in Lambda context (visible in CloudWatch)
     console.log(`📋 Found ${extractedWorkspaces.length} unique workspaces in dropdown:`);
     for (const ws of extractedWorkspaces) {
       console.log(`   📌 aria-label="${ws.ariaLabel}" | text="${ws.textContent}" | teamId=${ws.teamId}`);
     }
     
-    // Normalize for EXACT comparison (case-insensitive, trimmed)
     const normalize = (str) => (str || '').trim().toLowerCase();
     const targetNormalized = normalize(workspaceName);
     
     console.log(`🔍 Looking for EXACT match: "${workspaceName}" (normalized: "${targetNormalized}")`);
     
-    // EXACT MATCH ONLY - using aria-label which is the most reliable
-    // This ensures "QTalo" only matches "QTalo", NOT "QQTalo" or any partial match
     const exactMatch = extractedWorkspaces.find(w => normalize(w.ariaLabel) === targetNormalized);
     
     let workspaceResult;
@@ -383,7 +320,6 @@ async function switchToWorkspace(page, workspaceName) {
       };
     }
     
-    // Close the dropdown by pressing Escape
     await page.keyboard.press('Escape');
     await wait(500);
     
@@ -398,7 +334,6 @@ async function switchToWorkspace(page, workspaceName) {
       };
     }
     
-    // Step 3: Navigate directly to the SwitchTeam URL with the teamId
     const switchUrl = `https://run.reply.io/Home/SwitchTeam?teamId=${workspaceResult.teamId}`;
     console.log(`🔗 Navigating directly to workspace: ${switchUrl}`);
     
@@ -424,7 +359,6 @@ async function switchToWorkspace(page, workspaceName) {
   }
 }
 
-// Helper to send webhook notification via GET with query parameters
 async function sendWebhook(webhookUrl, data) {
   if (!webhookUrl) {
     console.log('No webhook URL provided, skipping notification');
@@ -433,7 +367,6 @@ async function sendWebhook(webhookUrl, data) {
 
   return new Promise((resolve, reject) => {
     try {
-      // Encode data as query parameters
       const params = new URLSearchParams({
         status: data.status,
         timestamp: data.timestamp,
@@ -441,7 +374,6 @@ async function sendWebhook(webhookUrl, data) {
       });
       
       const url = new URL(webhookUrl);
-      // Append encoded data to URL query string
       url.search = params.toString();
       
       const options = {
@@ -475,20 +407,15 @@ async function sendWebhook(webhookUrl, data) {
   });
 }
 
-// MULTI-TENANCY: Verify expected domains exist in Reply.io Email Accounts page
 async function verifyDomainsExistInReplyio(page, expectedDomains) {
   console.log('🔍 Verifying expected domains exist in Reply.io...');
   console.log(`   Expected domains: [${expectedDomains.join(', ')}]`);
   
-  // Wait for domain list to load
   await wait(2000);
   
-  // Extract domains from the Email Accounts page
   const foundDomains = await page.evaluate(() => {
     const domains = [];
     
-    // Look for domain elements in the Email Accounts list
-    // The page shows domains like "gocareerangel.co", "n8ntesting.com" etc.
     const domainElements = document.querySelectorAll('[class*="domain"], [data-domain], a[href*="domain"]');
     domainElements.forEach(el => {
       const text = el.textContent?.trim().toLowerCase();
@@ -497,13 +424,11 @@ async function verifyDomainsExistInReplyio(page, expectedDomains) {
       }
     });
     
-    // Also look for text that looks like domains in table rows or list items
     const allText = document.body.innerText;
     const domainRegex = /([a-z0-9][-a-z0-9]*\.)+[a-z]{2,}/gi;
     const matches = allText.match(domainRegex) || [];
     matches.forEach(match => {
       const domain = match.toLowerCase();
-      // Filter out common non-domain matches
       if (!domain.includes('reply.io') && 
           !domain.includes('google.com') &&
           !domain.includes('cloudflare') &&
@@ -512,18 +437,16 @@ async function verifyDomainsExistInReplyio(page, expectedDomains) {
       }
     });
     
-    return [...new Set(domains)]; // Unique domains
+    return [...new Set(domains)];
   });
   
   console.log(`   Found domains in Reply.io: [${foundDomains.join(', ')}]`);
   
-  // Check which expected domains exist
   const normalizedExpected = expectedDomains.map(d => d.toLowerCase().trim());
   const existingDomains = [];
   const missingDomains = [];
   
   for (const expected of normalizedExpected) {
-    // Check if domain exists (exact match or as suffix)
     const found = foundDomains.some(found => 
       found === expected || found.endsWith('.' + expected)
     );
@@ -556,16 +479,12 @@ exports.handler = async (event, context) => {
     
     console.log('Received event body:', JSON.stringify(body, null, 2));
     
-    // NEW: Accept client_id to fetch credentials from Secrets Manager
     const { client_id, accounts, async: asyncMode, webhookUrl, dry_run: dryRun } = body;
     
-    // Also support legacy mode with direct credentials (for backward compatibility)
     let { replyioEmail, replyioPassword } = body;
     
-    // MULTI-TENANCY: Expected domains for domain validation (from secrets or body)
     let expectedDomains = body.expected_domains || [];
     
-    // WORKSPACE SWITCHING: Reply.io workspace name for switching (from DynamoDB or body)
     let replyWorkspaceId = body.reply_workspace_id || null;
     
     console.log('Parsed parameters:', { 
@@ -580,26 +499,21 @@ exports.handler = async (event, context) => {
       reply_workspace_id: replyWorkspaceId || 'from DynamoDB'
     });
     
-    // If client_id is provided, fetch config from DynamoDB and credentials from Secrets Manager
     if (client_id && (!replyioEmail || !replyioPassword)) {
       console.log(`Fetching config and credentials for client: ${client_id}`);
       try {
-        // Fetch expected_domains from DynamoDB (config data)
         const clientConfig = await getClientConfig(client_id);
         
-        // Get expected_domains from DynamoDB if not provided in request
         if (expectedDomains.length === 0 && clientConfig.expectedDomains) {
           expectedDomains = clientConfig.expectedDomains;
           console.log(`📋 Using expected_domains from DynamoDB: [${expectedDomains.join(', ')}]`);
         }
         
-        // Get reply_workspace_id from DynamoDB if not provided in request
         if (!replyWorkspaceId && clientConfig.replyWorkspaceId) {
           replyWorkspaceId = clientConfig.replyWorkspaceId;
           console.log(`🏢 Using reply_workspace_id from DynamoDB: ${replyWorkspaceId}`);
         }
         
-        // Fetch credentials from Secrets Manager (sensitive data)
         const credentials = await getClientCredentials(client_id);
         replyioEmail = credentials.replyioEmail;
         replyioPassword = credentials.replyioPassword;
@@ -629,7 +543,6 @@ exports.handler = async (event, context) => {
       }
     }
     
-    // Validate required fields
     if (!replyioEmail || !replyioPassword || !accounts || !Array.isArray(accounts)) {
       const missingFields = [];
       if (!client_id && !replyioEmail) missingFields.push('client_id or replyioEmail');
@@ -667,7 +580,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate accounts array structure
     if (accounts.length === 0) {
       return {
         statusCode: 400,
@@ -684,7 +596,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Validate each account has required fields
     const accountErrors = [];
     accounts.forEach((account, index) => {
       const missing = [];
@@ -715,14 +626,10 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // ============================================================
-    // MULTI-TENANCY: Domain Validation (CRITICAL SAFETY CHECK)
-    // ============================================================
     console.log('🔒 Performing multi-tenancy domain validation...');
     const domainValidation = validateAccountDomains(accounts, expectedDomains, dryRun);
     
     if (!domainValidation.valid) {
-      // Security block - all accounts rejected
       return {
         statusCode: 403,
         headers: { 'Content-Type': 'application/json' },
@@ -742,13 +649,11 @@ exports.handler = async (event, context) => {
       };
     }
     
-    // Use validated accounts only
     const validatedAccounts = domainValidation.accounts;
     const rejectedAccounts = domainValidation.rejectedAccounts;
     
     console.log(`✅ Domain validation passed: ${validatedAccounts.length} accounts approved, ${rejectedAccounts.length} rejected`);
     
-    // DRY RUN MODE: Return validation results without making changes
     if (dryRun === true) {
       console.log('🔍 DRY RUN MODE - Returning validation results without modifying signatures');
       return {
@@ -775,9 +680,6 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // If async mode, process everything then send webhook
-    // Note: We CANNOT return 202 early - Lambda will terminate
-    // So we accept the API Gateway timeout and use webhook for results
     if (asyncMode === true) {
       console.log('Async mode enabled - processing will complete and send webhook');
       console.log('Note: API Gateway may timeout (503) but Lambda continues processing');
@@ -785,7 +687,6 @@ exports.handler = async (event, context) => {
       try {
         const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains, replyWorkspaceId);
         
-        // Add rejected accounts to result for transparency
         const enhancedResult = {
           ...result,
           domain_validation: {
@@ -798,13 +699,11 @@ exports.handler = async (event, context) => {
         
         console.log('Processing completed successfully:', JSON.stringify(enhancedResult, null, 2));
         
-        // Sync expected_domains to DynamoDB before responding
         const domainSync = await syncExpectedDomains(client_id, expectedDomains);
         if (domainSync.synced) {
           enhancedResult.domain_sync = domainSync;
         }
         
-        // Send webhook notification if URL provided
         if (webhookUrl) {
           console.log('Sending results to webhook:', webhookUrl);
           await sendWebhook(webhookUrl, {
@@ -823,7 +722,6 @@ exports.handler = async (event, context) => {
       } catch (error) {
         console.error('Processing error:', error);
         
-        // Send error to webhook if URL provided
         if (webhookUrl) {
           try {
             await sendWebhook(webhookUrl, {
@@ -846,14 +744,11 @@ exports.handler = async (event, context) => {
       }
     }
 
-    // Synchronous processing (original behavior) - also use validated accounts
     console.log('Starting synchronous processing...');
     const result = await processSignatures(replyioEmail, replyioPassword, validatedAccounts, expectedDomains, replyWorkspaceId);
     
-    // Sync expected_domains to DynamoDB before responding
     const domainSync = await syncExpectedDomains(client_id, expectedDomains);
     
-    // Add domain validation info to sync result
     const enhancedSyncResult = {
       ...result,
       domain_validation: {
@@ -884,11 +779,6 @@ exports.handler = async (event, context) => {
   }
 };
 
-// ============================================================
-// ORIGINAL processSignatures FUNCTION (UPDATED)
-// Now includes domain verification before processing
-// Now includes workspace switching for multi-tenancy
-// ============================================================
 
 async function processSignatures(replyioEmail, replyioPassword, accounts, expectedDomains = [], replyWorkspaceId = null) {
   let browser = null;
@@ -900,7 +790,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
       console.log(`🏢 Target workspace: ${replyWorkspaceId}`);
     }
 
-    // Get chromium executable path (local bin first, then layer fallback)
     const execPath = await getChromiumExecutablePath();
     console.log(`🌐 Chromium executable path: ${execPath}`);
 
@@ -926,29 +815,23 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
 
     const page = await browser.newPage();
     
-    // Enhanced anti-detection
     await page.evaluateOnNewDocument(() => {
-      // Remove webdriver property
       Object.defineProperty(navigator, 'webdriver', {
         get: () => false,
       });
       
-      // Mock languages
       Object.defineProperty(navigator, 'languages', {
         get: () => ['en-US', 'en'],
       });
       
-      // Mock plugins
       Object.defineProperty(navigator, 'plugins', {
         get: () => [1, 2, 3, 4, 5],
       });
       
-      // Mock chrome property
       window.chrome = {
         runtime: {},
       };
       
-      // Mock permissions
       const originalQuery = window.navigator.permissions.query;
       window.navigator.permissions.query = (parameters) => (
         parameters.name === 'notifications' ?
@@ -956,7 +839,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           originalQuery(parameters)
       );
       
-      // Override the automation detection
       Object.defineProperty(navigator, 'maxTouchPoints', {
         get: () => 1,
       });
@@ -970,7 +852,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
 
     console.log('Navigating directly to Reply.io email accounts settings...');
     
-    // Navigate directly to the email accounts settings page
     await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
       waitUntil: 'domcontentloaded', 
       timeout: 60000 
@@ -984,11 +865,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     console.log('Page title:', await page.title());
     console.log('Page content length:', pageContent.length);
     
-    // Take screenshot for debugging
     const screenshot = await page.screenshot({ encoding: 'base64' });
     console.log('Screenshot taken, length:', screenshot.length);
     
-    // Check if we're on a login page or the email accounts page
     const isLoginPage = currentUrl.includes('/login') || 
                         pageContent.toLowerCase().includes('sign in') ||
                         pageContent.toLowerCase().includes('log in');
@@ -998,9 +877,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     if (!isLoginPage) {
       console.log('✅ Already on email accounts page or authenticated area!');
       
-      // ============================================================
-      // WORKSPACE SWITCHING: Switch to client's workspace if specified
-      // ============================================================
       if (replyWorkspaceId) {
         console.log(`🏢 Already authenticated - switching to workspace: ${replyWorkspaceId}`);
         const workspaceResult = await switchToWorkspace(page, replyWorkspaceId);
@@ -1010,7 +886,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           console.log('⚠️ Continuing with current workspace...');
         } else if (workspaceResult.success && !workspaceResult.skipped) {
           console.log(`✅ Successfully switched to workspace: ${workspaceResult.workspace}`);
-          // Navigate back to email accounts after workspace switch
           await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
             waitUntil: 'networkidle0',
             timeout: 60000 
@@ -1019,11 +894,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
         }
       }
       
-      // Continue to email account processing
     } else {
       console.log('🔐 On login page, attempting to authenticate...');
     
-    // Check for CAPTCHA or blocking
     const hasCaptcha = pageContent.toLowerCase().includes('captcha') || 
                        pageContent.toLowerCase().includes('recaptcha') ||
                        pageContent.toLowerCase().includes('cloudflare');
@@ -1044,7 +917,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     });
     console.log('Found inputs:', JSON.stringify(inputTypes));
     
-    // Try multiple selectors for email input
     const emailSelectors = [
       'input[type="email"]',
       'input[name="email"]',
@@ -1068,7 +940,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
       }
     }
     
-    // If still not found, try to find by evaluating visible inputs
     if (!emailInput) {
       console.log('Trying to find first visible input...');
       emailInput = await page.evaluateHandle(() => {
@@ -1100,7 +971,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     await emailInput.type(replyioEmail, { delay: 120 });
     await wait(1000);
     
-    // Find password input
     const passwordSelectors = [
       'input[type="password"]',
       'input[name="password"]',
@@ -1152,11 +1022,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           }
         }
       } catch (e) {
-        // Continue to next selector
       }
     }
     
-    // Try finding by text content if selectors failed
     if (!submitButton) {
       submitButton = await page.evaluateHandle(() => {
         const buttons = Array.from(document.querySelectorAll('button'));
@@ -1200,23 +1068,18 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     
     console.log('Login successful, navigated to:', page.url());
     
-    // ============================================================
-    // WORKSPACE SWITCHING: Switch to client's workspace if specified
-    // ============================================================
     if (replyWorkspaceId) {
       console.log(`🏢 Attempting to switch to workspace: ${replyWorkspaceId}`);
       const workspaceResult = await switchToWorkspace(page, replyWorkspaceId);
       
       if (!workspaceResult.success && !workspaceResult.skipped) {
         console.error(`❌ Failed to switch to workspace: ${workspaceResult.error}`);
-        // Continue anyway - maybe they want to work in current workspace
         console.log('⚠️ Continuing with current workspace...');
       } else if (workspaceResult.success && !workspaceResult.skipped) {
         console.log(`✅ Successfully switched to workspace: ${workspaceResult.workspace}`);
       }
     }
     
-    // Navigate to email accounts page after login
     await page.goto('https://run.reply.io/Dashboard/Material#/settings/email-accounts/', { 
       waitUntil: 'networkidle0',
       timeout: 60000 
@@ -1224,12 +1087,8 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     await wait(3000);
     }
     
-    // Now we should be on the email accounts page
     console.log('Current URL:', page.url());
     
-    // ============================================================
-    // MULTI-TENANCY: Verify expected domains exist before processing
-    // ============================================================
     if (expectedDomains && expectedDomains.length > 0) {
       console.log('🔒 Verifying expected domains exist in Reply.io Email Accounts...');
       const domainVerification = await verifyDomainsExistInReplyio(page, expectedDomains);
@@ -1249,7 +1108,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
       }
       console.log(`✅ Domain verification passed: ${domainVerification.message}`);
     }
-    // ============================================================
     
     console.log('Processing email accounts...');
 
@@ -1262,7 +1120,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
       console.log(`[${i + 1}/${accounts.length}] Processing ${account.email}...`);
       
       try {
-        // If accountId is provided, navigate directly to the account edit page
         if (account.accountId) {
           console.log(`Navigating directly to account ${account.accountId} edit page...`);
           const accountUrl = `https://run.reply.io/Dashboard/Material#/settings/email-accounts/${account.accountId}/other/edit`;
@@ -1271,20 +1128,15 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           
           console.log(`Navigated to: ${page.url()}`);
           
-          // Screenshot removed for performance - only taken on errors
         } else {
-          // Legacy path: search for account on main page and click it
           console.log(`No accountId provided, searching for ${account.email} on page...`);
         
-          // Take a screenshot of the email accounts page
           const emailAccountsScreenshot = await page.screenshot({ encoding: 'base64' });
           console.log(`Email accounts page screenshot length: ${emailAccountsScreenshot.length}`);
           
-          // Get page content for debugging
           const pageText = await page.evaluate(() => document.body.innerText);
           console.log(`Page text preview (first 500 chars): ${pageText.substring(0, 500)}`);
           
-          // Check all text elements on page
           const allEmails = await page.evaluate(() => {
             const elements = Array.from(document.querySelectorAll('*'));
             const emailRegex = /[\w\.-]+@[\w\.-]+\.\w+/g;
@@ -1311,7 +1163,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           continue;
         }
         
-        // Try to find and click the account with detailed logging
         const clickResult = await page.evaluate((email) => {
           const elements = Array.from(document.querySelectorAll('*'));
           const accountEl = elements.find(el => el.textContent.trim() === email || el.textContent.includes(email));
@@ -1322,7 +1173,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           
           console.log('Found element with email:', accountEl.tagName, accountEl.className);
           
-          // Try different parent containers
           const possibleRows = [
             accountEl.closest('tr'),
             accountEl.closest('div[role="row"]'),
@@ -1336,7 +1186,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           console.log('Found possible rows:', possibleRows.length);
           
           if (possibleRows.length === 0) {
-            // Try clicking the element directly
             console.log('No row found, trying to click element directly');
             accountEl.click();
             return { success: true, method: 'direct element click' };
@@ -1345,7 +1194,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           const row = possibleRows[0];
           console.log('Using row:', row.tagName, row.className);
           
-          // Look for ALL interactive elements, not just buttons
           const allInteractive = row.querySelectorAll('button, a, [role="button"], [onclick], svg, path');
           console.log('Found interactive elements in row:', allInteractive.length);
           
@@ -1375,19 +1223,17 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
               hasSvg: btn.querySelector('svg') !== null
             });
             
-            // Look for edit/settings/menu buttons
             if (btnText.includes('edit') || btnText.includes('setting') || btnText.includes('...') ||
                 ariaLabel.includes('edit') || ariaLabel.includes('setting') || ariaLabel.includes('menu') || ariaLabel.includes('more') ||
                 title.includes('edit') || title.includes('setting') || title.includes('menu') ||
                 className.includes('edit') || className.includes('setting') || className.includes('menu') || className.includes('more') ||
-                (btn.querySelector('svg') && btnText.length < 5)) { // SVG icon button
+                (btn.querySelector('svg') && btnText.length < 5)) {
               console.log('✅ Clicking action button');
               btn.click();
               return { success: true, method: 'action button click', buttonInfo: { text: btnText, ariaLabel, title, className } };
             }
           }
           
-          // Try clicking the row itself
           console.log('No action button found, clicking row directly');
           row.click();
           return { success: true, method: 'row click' };
@@ -1401,21 +1247,16 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           continue;
         }
         
-        // Wait for drawer to open
         console.log('Waiting for drawer to open...');
         await wait(4000);
 
-        // Take screenshot after clicking to see drawer
         const drawerScreenshot = await page.screenshot({ encoding: 'base64', fullPage: false });
         console.log('Drawer screenshot length:', drawerScreenshot.length);
-        } // End of else block (legacy path)
+        }
 
-        // Now click Signature tab (works for both direct navigation and legacy path)
-        // Detect drawer and click Signature tab
         const tabClickResult = await page.evaluate(() => {
           console.log('Searching for Signature tab/button on entire page first...');
           
-          // Strategy 1: Search entire page for any visible "Signature" button/tab FIRST
           const allButtons = document.querySelectorAll('button, [role="tab"], a, div[role="button"], span');
           console.log(`Total buttons/tabs on page: ${allButtons.length}`);
           
@@ -1437,7 +1278,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
             return { success: true, method: 'page-wide search', tabText: signatureElements[0].textContent.trim() };
           }
           
-          // Strategy 2: If no Signature button found, look for drawer and search within it
           console.log('No Signature button found on page, looking for drawer...');
           
           const drawerSelectors = [
@@ -1486,18 +1326,14 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           continue;
         }
         
-        // Wait for signature tab content to load
         console.log('Waiting for signature tab content...');
         await wait(2000);
 
-        // Try to find signature editor and insert signature
         const insertResult = await page.evaluate((signature) => {
           console.log('Looking for signature editor...');
           
-          // Look for contenteditable div or textarea - try multiple strategies
           let editor = null;
           
-          // Strategy 1: Look for any contenteditable that's visible
           const contentEditables = document.querySelectorAll('div[contenteditable="true"], [contenteditable="true"]');
           console.log(`Found ${contentEditables.length} contenteditable elements`);
           
@@ -1516,7 +1352,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
             }
           }
           
-          // Strategy 2: Look for textarea
           if (!editor) {
             console.log('No visible contenteditable found, trying textareas...');
             const textareas = document.querySelectorAll('textarea');
@@ -1538,7 +1373,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
             }
           }
           
-          // Strategy 3: Look for iframe (rich text editor)
           if (!editor) {
             console.log('No textarea found, checking for iframes...');
             const iframes = document.querySelectorAll('iframe');
@@ -1565,7 +1399,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           }
           
           if (!editor) {
-            // Log all elements for debugging
             const allElements = document.querySelectorAll('*');
             let editableCount = 0;
             for (const el of allElements) {
@@ -1581,17 +1414,14 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           
           console.log(`Using editor: ${editor.tagName}, className: ${editor.className ? editor.className.substring(0, 50) : 'N/A'}`);
           
-          // Clear any existing content first
           if (editor.tagName === 'TEXTAREA') {
             editor.value = '';
           } else {
             editor.innerHTML = '';
           }
           
-          // Focus the editor first
           editor.focus();
           
-          // Insert the signature
           if (editor.tagName === 'TEXTAREA') {
             editor.value = signature;
             editor.dispatchEvent(new Event('input', { bubbles: true }));
@@ -1599,7 +1429,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
             editor.dispatchEvent(new Event('blur', { bubbles: true }));
           } else {
             editor.innerHTML = signature;
-            // Trigger more events for contenteditable
             editor.dispatchEvent(new Event('input', { bubbles: true }));
             editor.dispatchEvent(new Event('change', { bubbles: true }));
             editor.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true }));
@@ -1622,12 +1451,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           continue;
         }
         
-        // Screenshot removed for performance
         await wait(500);
         
-        // Check if signature is actually visible in the editor
         const signatureVisible = await page.evaluate(() => {
-          // Check all iframes
           const iframes = document.querySelectorAll('iframe');
           for (const iframe of iframes) {
             try {
@@ -1637,11 +1463,9 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
                 return { visible: true, content: content.substring(0, 200) };
               }
             } catch (e) {
-              // Can't access iframe
             }
           }
           
-          // Check contenteditable divs
           const editables = document.querySelectorAll('[contenteditable="true"]');
           for (const el of editables) {
             if (el.innerHTML && el.innerHTML.length > 10) {
@@ -1653,19 +1477,17 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
         });
         console.log('Signature visibility check:', JSON.stringify(signatureVisible));
         
-        // Click somewhere outside the editor to trigger blur/save
         await page.evaluate(() => {
           const signatureTab = Array.from(document.querySelectorAll('*')).find(el => 
             el.textContent.trim() === 'Signature' && el.tagName === 'BUTTON'
           );
           if (signatureTab) {
-            signatureTab.click(); // Click the tab itself to blur the editor
+            signatureTab.click();
           }
         });
         
         await wait(1000);
 
-        // Find and click save button
         const saveResult = await page.evaluate(() => {
           const buttons = Array.from(document.querySelectorAll('button, a, [role="button"]'));
           console.log(`Found ${buttons.length} buttons`);
@@ -1700,15 +1522,12 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
         console.log(`Save button click result:`, JSON.stringify(saveResult));
         
         if (saveResult.success) {
-          await wait(2000); // Wait for save to complete
+          await wait(2000);
           
-          // Verify signature was saved by checking if still in editor or for success message
           const verifyResult = await page.evaluate(() => {
-            // Check for success toast/notification
             const notifications = document.body.innerText.toLowerCase();
             const hasSuccess = notifications.includes('saved') || notifications.includes('success') || notifications.includes('updated');
             
-            // Check if signature still in editor
             let signatureStillPresent = false;
             const iframes = document.querySelectorAll('iframe');
             for (const iframe of iframes) {
@@ -1720,7 +1539,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
                   break;
                 }
               } catch (e) {
-                // Can't access
               }
             }
             
@@ -1737,7 +1555,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
           failCount++;
         }
 
-        // Don't navigate away - we'll go directly to next account if there is one
         console.log(`Completed processing ${account.email}. Moving to next account...`);
         await wait(500);
 
@@ -1747,7 +1564,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
         results.push({ email: account.email, success: false, error: error.message });
         failCount++;
         
-        // Only try to recover if there are more accounts to process
         if (i < accounts.length - 1) {
           console.log('Attempting to recover for next account...');
           await wait(2000);
@@ -1758,7 +1574,6 @@ async function processSignatures(replyioEmail, replyioPassword, accounts, expect
     console.log(`Processing complete. Success: ${successCount}, Failed: ${failCount}`);
     console.log('Results:', JSON.stringify(results, null, 2));
     
-    // Add detailed summary
     const summary = {
       total: accounts.length,
       successful: successCount,

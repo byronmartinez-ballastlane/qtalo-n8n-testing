@@ -1,4 +1,3 @@
-// Check if schedule with same name already exists
 const config = $('Prepare Schedule Config').first().json;
 const existingSchedules = $input.all().map(item => item.json);
 const scheduleName = config.schedule_config.name;
@@ -7,7 +6,6 @@ const forceOverwrite = config.schedule_force_overwrite;
 console.log(`📅 Checking for existing schedule: "${scheduleName}"`);
 console.log(`📅 Found ${existingSchedules.length} existing schedules`);
 
-// Find schedule with matching name
 const existingSchedule = existingSchedules.find(s => s.name === scheduleName);
 
 if (existingSchedule && !forceOverwrite) {

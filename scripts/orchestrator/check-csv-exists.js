@@ -1,10 +1,8 @@
-// Check if CSV URL exists before trying to download
 const config = $input.first().json;
 
 if (!config.csv_attachment_url || config.csv_attachment_url === '') {
   console.log('⚠️ No CSV attachment found in ClickUp task');
   
-  // Post warning comment to ClickUp
   try {
     await this.helpers.request({
       method: 'POST',

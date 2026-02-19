@@ -1,4 +1,3 @@
-// Final response
 const updateData = $('Aggregate Results').first().json;
 const deleteResult = $input.first().json;
 

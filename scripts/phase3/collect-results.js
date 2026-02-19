@@ -1,22 +1,18 @@
-// Collect results from all operations
 const processData = $('Process Fields Spec').first().json;
 const createResults = $input.all();
 const splitResults = $('Split Fields to Create').all();
 
-// Get skipped fields from any create result (they all have it)
 const fieldsToSkip = createResults.length > 0 ? (createResults[0].json.fields_to_skip || []) : (processData.fields_to_skip || []);
 
 const created = [];
 const alreadyExisted = [];
 const failed = [];
 
-// Map Reply.io field type back to human-readable (0=text, 1=number)
 const mapFieldTypeBack = (type) => {
   return type === 1 ? 'number' : 'text';
 };
 
 createResults.forEach((item, index) => {
-  // Get original field data from Split node
   const originalData = splitResults[index]?.json || {};
   const fieldTitle = item.json.title || item.json.field_title || originalData.field_title || 'unknown';
   const fieldType = item.json.fieldType !== undefined ? item.json.fieldType : (item.json.field_type !== undefined ? item.json.field_type : originalData.field_type);
@@ -24,7 +20,6 @@ createResults.forEach((item, index) => {
   if (item.json.error) {
     const errorMsg = item.json.error.message || item.json.error.toString();
     
-    // Check if error is ALREADY_EXISTS - treat as success
     if (errorMsg.includes('ALREADY_EXISTS_ERROR') || errorMsg.includes('already exists')) {
       alreadyExisted.push({
         title: fieldTitle,
@@ -32,7 +27,6 @@ createResults.forEach((item, index) => {
         reason: 'already exists'
       });
     } else {
-      // Real failure
       failed.push({
         title: fieldTitle,
         error: errorMsg

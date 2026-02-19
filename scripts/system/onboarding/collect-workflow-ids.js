@@ -1,4 +1,3 @@
-// Collect all created workflow IDs from the Create Workflow node
 const createItems = $('Create Workflow in n8n').all();
 const decodeItems = $('Decode & Inject Client Values').all();
 const extractInfo = $('Extract Client Info').first().json;

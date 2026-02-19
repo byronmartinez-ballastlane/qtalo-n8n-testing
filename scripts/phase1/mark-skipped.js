@@ -1,4 +1,3 @@
-// Mark truly skipped mailboxes (no update needed)
 const items = $input.all();
 
 const results = items.map(item => {

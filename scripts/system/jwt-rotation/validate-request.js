@@ -1,4 +1,3 @@
-// Validate rotation request from Lambda
 const body = $input.first().json.body;
 
 const newJwtToken = body.new_jwt_token;

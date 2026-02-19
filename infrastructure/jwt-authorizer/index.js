@@ -1,10 +1,3 @@
-/**
- * JWT Authorizer Lambda for API Gateway
- * 
- * Validates JWT tokens from the Authorization header.
- * Fetches the signing secret from AWS Secrets Manager.
- * Caches the secret for 5 minutes to reduce API calls.
- */
 
 const {
   SecretsManagerClient,
@@ -14,10 +7,9 @@ const crypto = require("crypto");
 
 const secretsClient = new SecretsManagerClient({});
 
-// Cache for the JWT secret
 let cachedSecret = null;
 let cacheExpiry = 0;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 async function getJwtSecret() {
   const now = Date.now();
@@ -117,9 +109,6 @@ function verifyJwt(token, secret) {
   return payload;
 }
 
-/**
- * Generate IAM policy for API Gateway
- */
 function generatePolicy(principalId, effect, resource, context = {}) {
   const policy = {
     principalId,

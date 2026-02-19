@@ -1,8 +1,6 @@
-// Extract custom fields from ClickUp task
 const task = $input.first().json;
 const customFields = task.custom_fields || [];
 
-// UUID v4 generator
 function generateUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
@@ -11,7 +9,6 @@ function generateUUID() {
   });
 }
 
-// Extract field value by NAME (case-insensitive) - works across all tasks/lists
 const getFieldByName = (name) => {
   const field = customFields.find(f => 
     f.name.toLowerCase().trim() === name.toLowerCase().trim()
@@ -19,7 +16,6 @@ const getFieldByName = (name) => {
   return field?.value || '';
 };
 
-// Get field ID by name for later updates
 const getFieldIdByName = (name) => {
   const field = customFields.find(f => 
     f.name.toLowerCase().trim() === name.toLowerCase().trim()
@@ -27,7 +23,6 @@ const getFieldIdByName = (name) => {
   return field?.id || '';
 };
 
-// Extract values by field NAME
 const companyName = getFieldByName('company_name');
 const companyUrl = getFieldByName('company_url');
 const replyApiKey = getFieldByName('Reply API Key');
@@ -37,26 +32,21 @@ const clickupApiKey = getFieldByName('Client ClickUp API Key');
 const replyWorkspaceId = getFieldByName('reply_workspace_id');
 const clientIdFieldId = getFieldIdByName('Client ID');
 
-// Validate required fields
 if (!replyApiKey || !replyUser || !replyPassword || !clickupApiKey) {
   throw new Error(`Missing required fields. Found: Reply API Key=${!!replyApiKey}, Reply User=${!!replyUser}, Reply Password=${!!replyPassword}, Client ClickUp API Key=${!!clickupApiKey}`);
 }
 
-// Generate client_id
 const clientId = generateUUID();
 
-// Parse domain from company_url
-// Input: www.n8n-testing.com, https://www.example.com/path
-// Output: n8n-testing.com, example.com
 function parseDomain(url) {
   if (!url) return null;
   let domain = url.toLowerCase().trim();
-  domain = domain.replace(/^https?:\/\//, ''); // Remove protocol
-  domain = domain.replace(/^www\./, '');        // Remove www.
-  domain = domain.split('/')[0];                // Remove path
-  domain = domain.split('?')[0];                // Remove query
-  domain = domain.split('#')[0];                // Remove hash
-  domain = domain.split(':')[0];                // Remove port
+  domain = domain.replace(/^https?:\/\//, '');
+  domain = domain.replace(/^www\./, '');
+  domain = domain.split('/')[0];
+  domain = domain.split('?')[0];
+  domain = domain.split('#')[0];
+  domain = domain.split(':')[0];
   return domain || null;
 }
 

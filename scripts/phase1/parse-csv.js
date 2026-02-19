@@ -1,11 +1,8 @@
-// Extract configuration from workflow execution data
 const executionData = $input.first().json;
 
-// Check if data was passed via workflow fields
 const config = executionData.inputData ? JSON.parse(executionData.inputData) : executionData;
 
 const workspaceId = config.reply_workspace_id || 'default-workspace';
-// Check both mailbox_csv_content AND data fields
 const mailboxCsv = config.mailbox_csv_content || config.data || '';
 const sendingLimits = config.sending_limits || { daily: 50, hourly: 10 };
 const forceOverwrite = config.force_overwrite || false;
@@ -14,7 +11,6 @@ const companyName = config.company_name || 'Test Company';
 console.log('Parse CSV - mailboxCsv length:', mailboxCsv.length);
 console.log('Parse CSV - first 100 chars:', mailboxCsv.substring(0, 100));
 
-// If no CSV content, return mock data for testing
 if (!mailboxCsv || mailboxCsv.trim() === '') {
   return [{ json: {
     email: 'test@example.com',
@@ -35,7 +31,6 @@ if (!mailboxCsv || mailboxCsv.trim() === '') {
   }}];
 }
 
-// Parse CSV manually (csv-parse not available in n8n)
 const lines = mailboxCsv.trim().split('\n');
 const headers = lines[0].split(',').map(h => h.trim());
 const records = [];
@@ -49,14 +44,11 @@ for (let i = 1; i < lines.length; i++) {
   records.push(record);
 }
 
-// Transform records
 const mailboxes = records.map((record, index) => {
-  // Parse name
   const nameParts = (record['Sender Name'] || '').trim().split(/\s+/);
   const firstName = nameParts[0] || '';
   const lastName = nameParts.slice(1).join(' ') || '';
   
-  // Extract domain
   const domain = record.Email.match(/@(.+)$/)?.[1] || '';
   
   return {
@@ -65,7 +57,7 @@ const mailboxes = records.map((record, index) => {
     firstName,
     lastName,
     domain,
-    displayName: firstName, // Use first name only
+    displayName: firstName,
     dailyLimit: parseInt(record['Daily Limit']) || 50,
     smtp: {
       host: record['SMTP Host'] || '',

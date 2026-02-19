@@ -1,5 +1,3 @@
-// Generate Phase 2 completion comment
-// Get data from Prepare CSV Binary node (before HTTP upload overwrites it)
 const data = $('Prepare CSV Binary').first().json;
 const config = $('Start').first().json;
 const summary = data.summary;

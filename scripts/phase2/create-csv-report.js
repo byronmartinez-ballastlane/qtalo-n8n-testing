@@ -1,7 +1,5 @@
-// Generate CSV report
 const items = $input.all();
 
-// Manual CSV generation (no external dependencies)
 const headers = ['Email', 'Status', 'Generated Signature', 'Opt-Out Line', 'Message', 'Timestamp'];
 const escapeCSV = (value) => {
   if (value === null || value === undefined) return '';
@@ -23,13 +21,11 @@ const rows = items.map(item => [
 
 const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 
-// Generate summary
 const total = items.length;
 const successful = items.filter(i => i.json.status === 'success').length;
 const failed = items.filter(i => i.json.status === 'error').length;
 const skipped = items.filter(i => i.json.status === 'skipped').length;
 
-// Get task_id from Start node
 const taskId = $('Start').first().json.task_id;
 
 return [{
