@@ -33,20 +33,12 @@ return items.map(item => {
     signature = signature.replace(regex, variables[key]);
   });
   
-  const optOutLines = config.opt_out_variants || [
-    "If you're ready to move on from my emails, just reply.",
-    "Not interested? Let me know.",
-    "Reply to unsubscribe."
-  ];
-  const randomOptOut = optOutLines[Math.floor(Math.random() * optOutLines.length)];
-  
   return {
     json: {
       mailbox_id: mailbox.id,
       email: emailAddress,
       senderName: mailbox.senderName || displayName,
       signature: signature,
-      opt_out_line: randomOptOut,
       force_overwrite: config.force_overwrite || false,
       has_existing_signature: !!mailbox.signature,
       config: config
