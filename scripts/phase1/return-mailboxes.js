@@ -1,4 +1,9 @@
-const allResults = $('Combine All Results').all();
+let allResults;
+try {
+  allResults = $('Combine All Results').all();
+} catch (e) {
+  allResults = [];
+}
 
 const mailboxes = allResults
   .map(item => item.json)
